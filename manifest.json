@@ -2,7 +2,7 @@
   "name": "算上一卦 - 中国传统术数占卜",
   "short_name": "算上一卦",
   "description": "中国传统术数占卜工具，包含小六壬、梅花易数、六爻、塔罗牌、黄历、三法合参",
-  "start_url": "./算上一卦.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0c0c1d",
   "theme_color": "#f0d060",
