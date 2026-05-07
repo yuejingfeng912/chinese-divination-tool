@@ -200,8 +200,18 @@
     .tab { padding: 6px 8px; font-size: 0.78rem; }
   }
 </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f0d060">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
 
 <div class="container">
   <h1>🔮 算上一卦</h1>
