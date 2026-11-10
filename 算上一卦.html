@@ -127,6 +127,26 @@
   .result .ana-note { color:#999; font-size:0.8rem; }
   .result .ana-hint { color:#8ab; font-size:0.82rem; }
 
+  /* AI 深度解读面板 */
+  .ai-card { border-color: rgba(127,140,220,0.35); }
+  .ai-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; background: none; border: none; color: #f0d060; cursor: pointer;
+    font-size: 0.95rem; padding: 2px 0; text-align: left;
+  }
+  .ai-toggle:hover { color: #fff2c0; }
+  .ai-hint { font-size: 0.75rem; color: #8a8; }
+  .ai-safety {
+    font-size: 0.78rem; line-height: 1.7; color: #9c9; background: rgba(120,200,140,0.08);
+    border-left: 2px solid rgba(120,200,140,0.5); border-radius: 6px; padding: 9px 11px; margin: 12px 0;
+  }
+  .ai-safety b { color: #8c8; }
+  .ai-safety code { color: #9cf; font-size: 0.75rem; }
+  .ai-status { font-size: 0.78rem; color: #999; margin: 8px 0; line-height: 1.7; }
+  .ai-status.ok { color: #8c8; }
+  .ai-status.err { color: #d77; }
+  .ai-status a { color: #8ab; }
+
   /* Huangli table */
   .hl-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
   .hl-table th, .hl-table td {
@@ -330,6 +350,25 @@ if ('serviceWorker' in navigator) {
       <button class="btn" onclick="doSanfa()">🔮 三法合参起卦</button>
       <div class="loading" id="sf-loading"><div class="spinner"></div>三法并举，正在推算...</div>
       <div class="result" id="sf-result"></div>
+    </div>
+  </div>
+
+  <!-- AI 深度解读（可选增强） -->
+  <div class="card ai-card" id="ai-card">
+    <button class="ai-toggle" onclick="toggleAiPanel()">
+      <span>🤖 AI 深度解读</span>
+      <span class="ai-hint">可选增强 · 不影响离线使用</span>
+    </button>
+    <div id="ai-body" style="display:none;">
+      <p class="ai-safety">🔒 <b>你的 API Key 不会出现在这个网页里。</b>本页只连接你本机的中转服务（默认 <code>127.0.0.1:8787</code>），Key 存在本机服务的配置文件里，既不下发到浏览器，也不会进入 Git 仓库。</p>
+      <label>本机代理地址</label>
+      <input type="text" id="ai-proxy" placeholder="http://127.0.0.1:8787" value="http://127.0.0.1:8787">
+      <div class="ai-status" id="ai-status">正在检测本机服务…</div>
+      <label>占问事项（默认带入刚才的卦象，可自行修改）</label>
+      <input type="text" id="ai-question" placeholder="如：这份工作要不要接？">
+      <button class="btn" onclick="askAiDeep()">🤖 请求 AI 深度解读</button>
+      <div class="loading" id="ai-loading"><div class="spinner"></div>AI 正在解读…</div>
+      <div class="result" id="ai-result"></div>
     </div>
   </div>
 
@@ -1062,6 +1101,15 @@ function doXiaoliu() {
     resultDiv.innerHTML = renderXiaoliu(res, question);
     resultDiv.classList.add('show');
     loading.classList.remove('show');
+    setAiContext(buildAiContext('小六壬', {
+      question,
+      lines: [
+        `起课方式：${res.method}（${res.input}）`,
+        `天宫：${XIAOLIU_GONG[res.tian]}（${XIAOLIU_JIXIONG[XIAOLIU_GONG[res.tian]]}，${XIAOLIU_WUXING[XIAOLIU_GONG[res.tian]]}行）`,
+        `地宫：${XIAOLIU_GONG[res.di]}（${XIAOLIU_JIXIONG[XIAOLIU_GONG[res.di]]}，${XIAOLIU_WUXING[XIAOLIU_GONG[res.di]]}行）`,
+        `人宫：${XIAOLIU_GONG[res.ren]}（${XIAOLIU_JIXIONG[XIAOLIU_GONG[res.ren]]}，${XIAOLIU_WUXING[XIAOLIU_GONG[res.ren]]}行）`
+      ]
+    }));
   }, 600);
 }
 
@@ -1168,6 +1216,17 @@ function doMeihua() {
     resultDiv.innerHTML = renderMeihua(res, question);
     resultDiv.classList.add('show');
     loading.classList.remove('show');
+    setAiContext(buildAiContext('梅花易数', {
+      question,
+      lines: [
+        `起卦方式：${res.method}（${res.input}）`,
+        `本卦：${res.guaName}（上${res.upperName}下${res.lowerName}）`,
+        `动爻：第${res.dongYao}爻`,
+        `体卦：${res.tiGua}（${res.tiWx}），代表自己/主体`,
+        `用卦：${res.yongGua}（${res.yongWx}），代表对方/外部`,
+        `体用关系：${res.rel} → ${res.jixiong}`
+      ]
+    }));
   }, 600);
 }
 
@@ -1269,6 +1328,16 @@ function doLiuyao() {
     resultDiv.innerHTML = renderLiuyao(res, question);
     resultDiv.classList.add('show');
     loading.classList.remove('show');
+    const pn = ["初爻","二爻","三爻","四爻","五爻","上爻"];
+    setAiContext(buildAiContext('六爻', {
+      question,
+      lines: [
+        `本卦：${res.benGua}（${LIUSHI4_JUDGE[res.benGua] || '平'}）`,
+        res.dongYaos.length ? `变卦：${res.bianGua}（${LIUSHI4_JUDGE[res.bianGua] || '平'}）` : `变卦：无（静卦）`,
+        `动爻：${res.dongYaos.length ? res.dongYaos.map(d => pn[d-1]).join('、') : '无（六爻皆静）'}`,
+        ...res.details.map(d => `第${d.pos}爻（${pn[d.pos-1]}）：${d.yaoName} ${d.desc}`)
+      ]
+    }));
   }, 800);
 }
 
@@ -1408,6 +1477,15 @@ function doTarot() {
     resultDiv.innerHTML = renderTarot(cards, mode, question);
     resultDiv.classList.add('show');
     loading.classList.remove('show');
+    const pos = mode === 1 ? ["当下指引"] :
+                mode === 3 ? ["过去·原因", "现在·状况", "未来·结果"] :
+                ["核心问题", "挑战/障碍", "过去影响", "现在状况", "可能结果"];
+    setAiContext(buildAiContext('塔罗牌', {
+      question,
+      lines: cards.map((c, i) =>
+        `${pos[i] || '第'+(i+1)+'张'}：${c.card}（${c.suit}·${c.orientation}）` +
+        (TAROT_MEANING[c.card] ? ` — ${c.isUp ? TAROT_MEANING[c.card].up : TAROT_MEANING[c.card].down}` : ''))
+    }));
   }, 700);
 }
 
@@ -1700,6 +1778,16 @@ function doSanfa() {
     resultDiv.innerHTML = renderSanfa(xl, mh, ly, question);
     resultDiv.classList.add('show');
     loading.classList.remove('show');
+    const pn = ["初爻","二爻","三爻","四爻","五爻","上爻"];
+    setAiContext(buildAiContext('三法合参（小六壬+梅花易数+六爻）', {
+      question,
+      lines: [
+        `【小六壬】天宫 ${XIAOLIU_GONG[xl.tian]}、地宫 ${XIAOLIU_GONG[xl.di]}、人宫 ${XIAOLIU_GONG[xl.ren]}（${XIAOLIU_JIXIONG[XIAOLIU_GONG[xl.ren]]}）`,
+        `【梅花易数】本卦 ${mh.guaName}，动爻第${mh.dongYao}爻，体卦 ${mh.tiGua}、用卦 ${mh.yongGua}，体用关系 ${mh.rel} → ${mh.jixiong}`,
+        `【六爻】本卦 ${ly.benGua}${ly.dongYaos.length ? '，变卦 ' + ly.bianGua : '，静卦无变'}` +
+        (ly.dongYaos.length ? `，动爻 ${ly.dongYaos.map(d => pn[d-1]).join('、')}` : '')
+      ]
+    }));
   }, 800);
 }
 
@@ -1821,6 +1909,165 @@ function renderSanfa(xl, mh, ly, question) {
   html += `<div class="ana-step">${actionHtml}</div>`;
   html += rationalNote();
   return html;
+}
+
+// ============================================================
+// AI 深度解读（可选增强，方案B）
+// ----------------------------------------------------------------
+// 安全设计：前端只保存「代理地址」，永远不保存也不发送 API Key。
+// Key 由本机 server/proxy.js 从 .env 读取并保管，只存在于服务端进程内存。
+// 本机服务没开时，本面板优雅降级，不影响任何离线功能。
+// ============================================================
+
+const AI_PROXY_STORE = 'ssyg.ai.proxy';
+let AI_LAST_CONTEXT = null; // 最近一次的卦象上下文，供 AI 解读
+
+// 记录最近一次占卜的上下文（各 do* 函数在渲染后调用）
+function setAiContext(ctx) { AI_LAST_CONTEXT = ctx; }
+
+function getAiProxyUrl() {
+  let v = '';
+  try { v = localStorage.getItem(AI_PROXY_STORE) || ''; } catch (e) { /* 隐私模式 */ }
+  return v || 'http://127.0.0.1:8787';
+}
+
+function toggleAiPanel() {
+  const body = document.getElementById('ai-body');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (open) {
+    document.getElementById('ai-proxy').value = getAiProxyUrl();
+    if (AI_LAST_CONTEXT && AI_LAST_CONTEXT.question) {
+      const q = document.getElementById('ai-question');
+      if (!q.value.trim()) q.value = AI_LAST_CONTEXT.question;
+    }
+    checkAiProxy();
+  }
+}
+
+async function checkAiProxy() {
+  const st = document.getElementById('ai-status');
+  const base = (document.getElementById('ai-proxy').value || getAiProxyUrl()).trim().replace(/\/+$/, '');
+  st.className = 'ai-status';
+  st.textContent = '正在检测本机服务…';
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2500);
+    const r = await fetch(base + '/health', { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if (j.hasKey) {
+      st.className = 'ai-status ok';
+      st.innerHTML = `✓ 已连接本机服务（模型：${esc(j.model || '未知')}）。API Key 由本机服务保管，未经过网页。`;
+    } else {
+      st.className = 'ai-status err';
+      st.innerHTML = '⚠ 本机服务已启动，但未配置 API Key。请复制 <code>.env.example</code> 为 <code>.env</code> 填入 Key 后重启服务。';
+    }
+  } catch (e) {
+    st.className = 'ai-status err';
+    st.innerHTML = `✗ 未连接到本机服务（${esc(e.message)}）。<br>请先双击项目根目录的「启动代理.bat」；不使用 AI 解读的话，本页其余功能照常可用。`;
+  }
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// 把当前卦象组装成给 AI 的结构化上下文
+function buildAiContext(kind, payload) {
+  const topic = detectTopic(payload.question || '');
+  return {
+    kind, topic: topic.name,
+    question: payload.question || '',
+    lines: payload.lines || []
+  };
+}
+
+const AI_SYSTEM_PROMPT = `你是「算上一卦」的中式术数解读助手。用户会给你：所问事项、术数类型、以及已经排好的卦象/牌面数据。
+
+要求：
+1. 用中文白话解读，不要堆砌术语，不要故弄玄虚。
+2. 结构清晰：先讲这卦/这牌本身代表什么，再讲结合所问之事意味着什么，最后给具体可操作的建议。
+3. 语气笃定但不绝对；有明确倾向判断，不要说模棱两可的废话。
+4. 禁止恐吓性语言、禁止死亡预测、禁止"命中注定"式的宿命论断言。
+5. 纯文本输出，可用简短的段落和小标题，不要用 Markdown 表格（会被转义）。
+
+参考的术数要点：
+- 小六壬三宫：天宫主起因与外部大势，地宫主过程与人事，人宫主结果与落点，以人宫定吉凶。
+- 梅花易数：体卦代表自己/主体，用卦代表对方/外部；用生体吉、体克用吉、比和平、体生用小凶、用克体凶；动爻位置指示变化着力点。
+- 六爻：本卦为当前，变卦为去向；动爻越多变动越快；静卦表示事态胶着需主动推动。
+- 塔罗：正位能量顺畅、逆位受阻或转向内在；大牌代表命盘级大主题，小牌代表日常可控；多牌阵按位置（过去/现在/未来）串联因果。
+
+只解读，不要编造未提供的卦象信息。`;
+
+async function askAiDeep() {
+  const statusEl = document.getElementById('ai-status');
+  const loading = document.getElementById('ai-loading');
+  const resultDiv = document.getElementById('ai-result');
+  const proxyInput = document.getElementById('ai-proxy');
+  const qInput = document.getElementById('ai-question');
+
+  if (!AI_LAST_CONTEXT) {
+    statusEl.className = 'ai-status err';
+    statusEl.textContent = '请先在上面任意一种占法起一卦，再来请求 AI 解读。';
+    return;
+  }
+  const question = qInput.value.trim() || AI_LAST_CONTEXT.question;
+  const base = (proxyInput.value || getAiProxyUrl()).trim().replace(/\/+$/, '');
+  try { localStorage.setItem(AI_PROXY_STORE, base); } catch (e) { /* ignore */ }
+
+  loading.classList.add('show');
+  resultDiv.classList.remove('show');
+  statusEl.className = 'ai-status';
+  statusEl.textContent = '正在请求…';
+
+  const ctx = AI_LAST_CONTEXT;
+  const userMsg = [
+    `【所问事项】${question || '（未填写具体事项，请作综合运势解读）'}`,
+    `【术数类型】${ctx.kind}`,
+    `【识别到的事项类别】${ctx.topic}`,
+    `【排盘结果】`,
+    ...ctx.lines.map(l => '  - ' + l),
+    ``,
+    `请针对上述所问事项，给出有理有据的完整解读。`
+  ].join('\n');
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 90000);
+    const r = await fetch(base + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: AI_SYSTEM_PROMPT },
+          { role: 'user', content: userMsg }
+        ],
+        temperature: 0.85,
+        max_tokens: 2000
+      })
+    });
+    clearTimeout(timer);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) {
+      throw new Error(j.error || ('HTTP ' + r.status));
+    }
+    statusEl.className = 'ai-status ok';
+    statusEl.textContent = '✓ 解读完成。';
+    resultDiv.innerHTML = `<h3>🤖 AI 深度解读</h3><div class="ana-step">${esc(j.content)
+      .replace(/\n{3,}/g, '\n\n').replace(/\n/g, '<br>')}</div>` +
+      `<p class="ana-note">AI 解读由你本机的大模型生成，供参考。请结合自身情况判断，重大决定以现实信息与专业意见为准。</p>`;
+    resultDiv.classList.add('show');
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? '请求超时，请检查本机服务与网络' : e.message;
+    statusEl.className = 'ai-status err';
+    statusEl.innerHTML = `✗ 请求失败：${esc(msg)}<br>若提示未连接，请先启动「启动代理.bat」。离线解读功能不受影响。`;
+  } finally {
+    loading.classList.remove('show');
+  }
 }
 
 // ============================================================

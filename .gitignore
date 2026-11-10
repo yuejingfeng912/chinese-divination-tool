@@ -1,6 +1,12 @@
 # WorkBuddy
 .workbuddy/
 
+# 密钥文件：绝不能提交到 GitHub
+.env
+.env.local
+*.key
+*.pem
+
 # OS
 Thumbs.db
 Desktop.ini
