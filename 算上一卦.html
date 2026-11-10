@@ -118,6 +118,14 @@
   .result .lucky { color: #5d5; }
   .result .unlucky { color: #d55; }
   .result .neutral { color: #fb5; }
+  /* 解读引擎排版 */
+  .result .ana-step { border-left: 2px solid rgba(240,208,96,0.35); padding: 2px 0 2px 10px; margin: 9px 0; }
+  .result .ana-step b { color: #f0d060; }
+  .result .ana-topic { background: rgba(240,208,96,0.08); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+  .result .ana-chain { background: rgba(127,140,220,0.10); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+  .result .ana-tag { display:inline-block; font-size:0.72rem; color:#f0d060; border:1px solid rgba(240,208,96,0.4); border-radius:10px; padding:1px 8px; margin-right:5px; }
+  .result .ana-note { color:#999; font-size:0.8rem; }
+  .result .ana-hint { color:#8ab; font-size:0.82rem; }
 
   /* Huangli table */
   .hl-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -696,34 +704,278 @@ const TAROT_SUITS = {
 const TAROT_ALL = [...TAROT_MAJOR];
 for (const s of Object.values(TAROT_SUITS)) TAROT_ALL.push(...s);
 
+// 每张牌：up 正位释义 / down 逆位释义 / k 核心意象（用于关联分析）/ t 主题
 const TAROT_MEANING = {
-  "愚者(0)": {up:"新的开始，冒险，天真", down:"鲁莽，缺乏计划"},
-  "魔术师(I)": {up:"创造力，意志力，技巧", down:"操纵，欺骗，浪费天赋"},
-  "女祭司(II)": {up:"直觉，潜意识，神秘", down:"表面化，忽略直觉"},
-  "女皇(III)": {up:"丰收，母性，感官愉悦", down:"依赖，创造力枯竭"},
-  "皇帝(IV)": {up:"权威，稳定，领导力", down:"专制，僵化，过度控制"},
-  "教皇(V)": {up:"传统，指引，信仰", down:"非传统，反叛，教条主义"},
-  "恋人(VI)": {up:"爱情，选择，结合", down:"不和谐，价值冲突"},
-  "战车(VII)": {up:"意志，胜利，控制", down:"失控，方向不明，侵略"},
-  "力量(VIII)": {up:"勇气，耐心，内在力量", down:"自我怀疑，软弱"},
-  "隐士(IX)": {up:"内省，寻找真理，孤独", down:"孤立，逃避，偏执"},
-  "命运之轮(X)": {up:"转机，命运转折，好运", down:"阻力，逆境，坏运气"},
-  "正义(XI)": {up:"公正，真相，因果", down:"不公正，逃避责任"},
-  "倒吊人(XII)": {up:"牺牲，新视角，等待", down:"拖延，不必要的牺牲"},
-  "死神(XIII)": {up:"结束，转变，新生", down:"抗拒改变，恐惧"},
-  "节制(XIV)": {up:"平衡，调和，耐心", down:"不平衡，过度，冲突"},
-  "恶魔(XV)": {up:"束缚，诱惑，物质主义", down:"解放，挣脱束缚"},
-  "塔(XVI)": {up:"突变，觉醒，打破旧有", down:"恐惧改变，拖延灾难"},
-  "星星(XVII)": {up:"希望，灵感，宁静", down:"绝望，失去信心"},
-  "月亮(XVIII)": {up:"幻觉，恐惧，潜意识", down:"释放恐惧，真相浮现"},
-  "太阳(XIX)": {up:"成功，活力，阳光普照", down:"过度乐观，延迟"},
-  "审判(XX)": {up:"觉醒，重生，评判", down:"自我怀疑，不愿面对过去"},
-  "世界(XXI)": {up:"完成，圆满，成就", down:"未完成，缺少闭环"}
+  // ===== 大阿尔卡纳 22 张：人生的大主题、命盘级的力量 =====
+  "愚者(0)":      {up:"全新的起点、自由与未知，适合放下包袱轻装出发", down:"鲁莽冒进、缺乏计划，或逃避该面对的责任", k:"开始", t:"旅程"},
+  "魔术师(I)":    {up:"创造力与主动权都在你手上，条件齐备，可以开始了", down:"天赋被浪费，或有人在操纵局面、话术大于实质", k:"创造", t:"行动"},
+  "女祭司(II)":   {up:"答案在心里，宜静观、倾听直觉，暂不急着行动", down:"忽略内在声音、被表象迷惑，或秘密尚未揭开", k:"直觉", t:"内在"},
+  "女皇(III)":    {up:"丰盛、滋养与孕育，事情自然生长，宜从容培育", down:"过度依赖、创造力枯竭，或付出失衡", k:"丰盛", t:"滋养"},
+  "皇帝(IV)":     {up:"秩序、权威与掌控，建立规则、稳住结构最有利", down:"僵化专断、控制过度，或权力被误用", k:"秩序", t:"结构"},
+  "教皇(V)":      {up:"循正规路径、寻求长辈或专业人士指引", down:"教条束缚、墨守成规，或该跳出既有框架", k:"师承", t:"规范"},
+  "恋人(VI)":     {up:"结合与契合，也代表一个需要用心做的重要选择", down:"价值观冲突、关系失和，或选择失当", k:"抉择", t:"关系"},
+  "战车(VII)":    {up:"以意志驾驭局面，方向明确，宜果断推进", down:"失控、方向不明，或被情绪牵着走", k:"进取", t:"掌控"},
+  "力量(VIII)":   {up:"以柔克刚，凭耐心与内在力量化解，不必硬碰", down:"自我怀疑、信心不足，或耐心耗尽", k:"韧性", t:"内在"},
+  "隐士(IX)":     {up:"独处内省、退一步想清楚，真理要向内求", down:"孤立封闭、逃避现实，或钻牛角尖", k:"内省", t:"内在"},
+  "命运之轮(X)":  {up:"转机与顺势，节奏不在你但风向对你有利", down:"阻力与低谷，运势在调整期，宜守不宜进", k:"转机", t:"变化"},
+  "正义(XI)":     {up:"因果分明、公正裁量，讲事实与责任最有利", down:"偏颇、逃避责任，或结果有失公允", k:"权衡", t:"裁断"},
+  "倒吊人(XII)":  {up:"换个角度看、主动暂停，短期的等待换来转念", down:"无谓的牺牲、被动拖延，卡在原地不肯动", k:"暂停", t:"转念"},
+  "死神(XIII)":   {up:"结束即新生，旧阶段该落幕，放下才有新局", down:"抗拒改变、紧抓不放，转变被拖延", k:"蜕变", t:"变化"},
+  "节制(XIV)":    {up:"调和与平衡，慢慢来、按比例来，凡事留余地", down:"失衡、过度或节奏冲突，需要重新校准", k:"调和", t:"平衡"},
+  "恶魔(XV)":     {up:"看清欲望与束缚所在——可能是执念、依赖或利益捆绑", down:"正在挣脱束缚，或已意识到该离开的牵绊", k:"束缚", t:"欲望"},
+  "塔(XVI)":      {up:"旧结构突然松动，虽震动却是打破僵局的觉醒", down:"害怕改变而拖延，或冲击被暂时压下", k:"突变", t:"变化"},
+  "星星(XVII)":   {up:"风雨后的希望、灵感与疗愈，长线可期", down:"信心动摇、暂时看不到方向，宜先稳住", k:"希望", t:"疗愈"},
+  "月亮(XVIII)":  {up:"雾里看花，直觉敏感但信息未明，宜谨慎求证", down:"迷雾渐散、真相浮现，焦虑开始消退", k:"迷惘", t:"内在"},
+  "太阳(XIX)":    {up:"明朗、成功与活力，坦荡前行，好事可期", down:"过于乐观、收获延后，或光芒被暂时遮住", k:"顺遂", t:"丰盛"},
+  "审判(XX)":     {up:"觉醒与重启，重新审视过去、作出关键决断", down:"不愿面对过去、自我苛责，或迟迟不做总结", k:"复盘", t:"转折"},
+  "世界(XXI)":    {up:"圆满收束、阶段完成，可以庆祝并迈向下一程", down:"临门一脚未闭环，还差最后的收尾", k:"圆满", t:"旅程"},
+  // ===== 权杖（火 / 行动、热情、事业冲劲）=====
+  "权杖Ace":  {up:"一股新的热情或机会点燃，适合起个头", down:"热度未稳、动力不足，或时机尚早", k:"起步", t:"行动"},
+  "权杖2":    {up:"站在选择的起点，规划未来、权衡去留", down:"犹豫不决、计划落空，或不敢迈出", k:"规划", t:"行动"},
+  "权杖3":    {up:"初步有成果，格局打开，宜向外拓展", down:"进展受阻、视野受限，或等待落空", k:"拓展", t:"行动"},
+  "权杖4":    {up:"阶段性的安稳与庆祝，值得停下来巩固", down:"过渡期不稳、根基未牢，或节奏被打断", k:"安定", t:"结构"},
+  "权杖5":    {up:"竞争与分歧浮现，是磨合也是较量", down:"冲突内耗、无谓争执，或回避矛盾", k:"竞争", t:"冲突"},
+  "权杖6":    {up:"努力被看见，带来认可与小小的胜利", down:"成果被打折、底气不足，或认可迟迟不来", k:"凯旋", t:"丰盛"},
+  "权杖7":    {up:"守成有压力，但立场站得稳，值得坚持", down:"防线松动、疲于应付，或想放弃", k:"坚守", t:"冲突"},
+  "权杖8":    {up:"节奏骤然加快，消息与进展快速到来", down:"进度拖延、消息不畅，或急于求成", k:"加速", t:"行动"},
+  "权杖9":    {up:"最后一关，带着警觉坚持住就快到了", down:"筋疲力尽、戒备过度，或撑不住", k:"坚持", t:"内在"},
+  "权杖10":   {up:"担子很重但已扛到最后，快到交付点", down:"负荷超限、该分担或放下一些", k:"重担", t:"结构"},
+  "权杖侍从": {up:"带来新消息、新想法，带着好奇去尝试", down:"三分钟热度、消息不实，或毛躁", k:"消息", t:"行动"},
+  "权杖骑士": {up:"热情果断地推进，行动力强但要控节奏", down:"冲动鲁莽、半途而废，或方向飘忽", k:"冲劲", t:"行动"},
+  "权杖王后": {up:"自信而有感染力，能稳住场面又带动他人", down:"掌控欲过强、情绪化，或自信受挫", k:"自信", t:"掌控"},
+  "权杖国王": {up:"有远见与决断，适合定方向、做主导", down:"独断、急躁，或权威被挑战", k:"主导", t:"掌控"},
+  // ===== 圣杯（水 / 情感、关系、内心）=====
+  "圣杯Ace":  {up:"情感的新萌芽，一份好感、和解或灵感涌现", down:"情绪堵塞、好感未回应，或难以开口", k:"心动", t:"关系"},
+  "圣杯2":    {up:"双向的契合与连结，合作或关系对等流动", down:"关系失衡、误会，或一厢情愿", k:"契合", t:"关系"},
+  "圣杯3":    {up:"分享与欢聚，人脉、庆祝、好消息", down:"热闹后的空虚、圈子里的是非", k:"欢聚", t:"关系"},
+  "圣杯4":    {up:"对现况倦怠，需重新看见手边被忽略的机会", down:"从消沉里走出，愿意重新投入", k:"倦怠", t:"内在"},
+  "圣杯5":    {up:"失落与遗憾，但仍有没被打翻的部分值得珍惜", down:"开始接纳、走出失落，转向修复", k:"遗憾", t:"疗愈"},
+  "圣杯6":    {up:"旧人旧事、回忆与善意，带着温情回头看", down:"困在过去、过度怀旧，或该向前了", k:"回忆", t:"内在"},
+  "圣杯7":    {up:"选择太多、幻想太满，需分辨哪些是真实的", down:"迷雾渐清、认清想要什么", k:"幻想", t:"内在"},
+  "圣杯8":    {up:"主动离开不再滋养的人事物，去寻找更深的意义", down:"舍不得放手、反复徘徊", k:"放下", t:"变化"},
+  "圣杯9":    {up:"心愿得偿、满足感满满，值得好好享受", down:"如愿却仍有缺憾，或满足只是表面", k:"满足", t:"丰盛"},
+  "圣杯10":   {up:"情感与家庭的圆满，归属感踏实", down:"理想与现实的落差，或关系里的小裂痕", k:"圆满", t:"关系"},
+  "圣杯侍从": {up:"一个温柔的消息、示好或创意灵感", down:"情绪化、消息含糊，或不够成熟", k:"示意", t:"关系"},
+  "圣杯骑士": {up:"带着诚意的靠近、邀约或追求", down:"情绪起伏、承诺不实，或行动迟疑", k:"邀约", t:"关系"},
+  "圣杯王后": {up:"体贴共情，宜以柔和处理关系与情绪", down:"过度共情而耗损，或情绪被牵动", k:"共情", t:"内在"},
+  "圣杯国王": {up:"情感成熟、稳得住场面，能包容也能拿捏", down:"压抑情绪、以退为进，或掌控失衡", k:"沉稳", t:"掌控"},
+  // ===== 宝剑（风 / 思虑、沟通、冲突）=====
+  "宝剑Ace":  {up:"思路豁然开朗，一个清晰的判断或突破", down:"思绪混乱、判断失准，或话没说清", k:"洞见", t:"裁断"},
+  "宝剑2":    {up:"两难权衡，需要静心把利弊摆平再决断", down:"僵持不下、回避决定，或信息不全", k:"两难", t:"裁断"},
+  "宝剑3":    {up:"刺痛的真相或伤心，承认它才能开始愈合", down:"伤痛渐缓、慢慢释怀", k:"伤痛", t:"疗愈"},
+  "宝剑4":    {up:"按下暂停、休整蓄力，暂退是为了恢复", down:"停滞过久、该重新动起来", k:"休整", t:"内在"},
+  "宝剑5":    {up:"争执后的得失，赢了场面未必赢了里子", down:"想化解冲突、放下输赢", k:"争执", t:"冲突"},
+  "宝剑6":    {up:"离开纷扰、渡向较平静的处境", down:"想走却走不脱，或问题被带着走", k:"过渡", t:"变化"},
+  "宝剑7":    {up:"需要策略与留一手，也要留意信息是否可靠", down:"坦白、归还，或策略被识破", k:"策略", t:"裁断"},
+  "宝剑8":    {up:"自我设限、觉得被困，其实多是自己吓自己", down:"开始松绑、看见出口", k:"受限", t:"内在"},
+  "宝剑9":    {up:"焦虑与夜里放大的担忧，多半比现实更重", down:"焦虑渐退、愿意求助或说出口", k:"忧虑", t:"内在"},
+  "宝剑10":   {up:"触底、了结，最坏已过，可以重新起身", down:"缓慢复原，但阴影未完全散", k:"触底", t:"疗愈"},
+  "宝剑侍从": {up:"留意消息与细节，保持警觉与好奇", down:"流言、话里有话，或打探失当", k:"讯息", t:"裁断"},
+  "宝剑骑士": {up:"直来直往、快速推进，但别冲得太急", down:"鲁莽言辞、争强好胜，或失了分寸", k:"急进", t:"行动"},
+  "宝剑王后": {up:"清醒、界限分明，能一刀切中要害", down:"过于冷硬、话带锋芒，或防备太重", k:"清明", t:"裁断"},
+  "宝剑国王": {up:"以理性和原则裁断，适合讲规则、定是非", down:"严苛、以理压人，或判断偏执", k:"裁断", t:"掌控"},
+  // ===== 星币（土 / 金钱、工作、现实落地）=====
+  "星币Ace":  {up:"一个实在的机会、进账或新计划落地", down:"机会未稳、预算吃紧，或错失起步", k:"实机", t:"丰盛"},
+  "星币2":    {up:"多头兼顾、灵活调度，注意别把资源摊太薄", down:"失衡、忙乱，或收支难平", k:"调度", t:"平衡"},
+  "星币3":    {up:"打底与协作，把功夫做扎实、团队对得上", down:"配合失畅、基本功没到位", k:"筑基", t:"结构"},
+  "星币4":    {up:"守住已有、稳中求安，但也别抓得太死", down:"松手、开始流动，或过度保守错失", k:"守成", t:"结构"},
+  "星币5":    {up:"一段吃紧或匮乏感，留意别忽略身边的支援", down:"境况回暖、开始走出低谷", k:"困顿", t:"疗愈"},
+  "星币6":    {up:"资源互通、有来有往，给予与接受达到平衡", down:"施受不均、附带条件，或人情压力", k:"互惠", t:"平衡"},
+  "星币7":    {up:"投入已见雏形，该停下来评估收成与去留", down:"迟迟不收、或焦虑于结果", k:"评估", t:"丰盛"},
+  "星币8":    {up:"专注打磨、反复练习，量变正在积累", down:"敷衍、原地打转，或用错了功", k:"精进", t:"结构"},
+  "星币9":    {up:"自给自足的从容，靠自己挣来的踏实", down:"依赖他人、或体面下的不安", k:"自立", t:"丰盛"},
+  "星币10":   {up:"长久的积累与家业，稳定而可传承", down:"家计或长远规划出现分歧", k:"基业", t:"结构"},
+  "星币侍从": {up:"务实的学习、一个新的财务或工作机会", down:"眼高手低、计划空泛，或不够上心", k:"学习", t:"行动"},
+  "星币骑士": {up:"按部就班、稳稳推进，慢但可靠", down:"进度停滞、过于保守或懒散", k:"稳进", t:"行动"},
+  "星币王后": {up:"踏实照顾现实面，把资源与人都安顿好", down:"为现实过度操劳，或忽略照顾自己", k:"务实", t:"滋养"},
+  "星币国王": {up:"资源与局面的稳健掌控，适合长期布局", down:"过于看重物质、固执守旧", k:"稳固", t:"掌控"}
 };
 
 // ============================================================
-// 工具函数
+// 离线解读知识库（方案A：把「解读层」固化进前端，无需联网/模型）
 // ============================================================
+
+// —— 占问事项分类：让 question 真正参与分析 ——
+const TOPIC_LIB = {
+  love:   {name:"感情", kw:["感情","恋爱","爱情","表白","对象","分手","和好","复合","婚姻","结婚","相亲","追求","暗恋","桃花","伴侣","吵架","冷战争执","异地","暧昧"],
+           lens:"关系与沟通的走向",
+           good:"两股能量是相互靠近的，适合把话说开、主动表达，别把心意憋着",
+           bad:"当下容易有误会或节奏不同步，先稳住情绪、给彼此一点空间，不宜急着要答案",
+           action:"把注意力放在『真诚表达 + 耐心倾听』上，少猜测、多确认"},
+  career: {name:"事业", kw:["工作","事业","职位","跳槽","离职","面试","录用","升职","加薪","项目","老板","同事","领导","offer","入职","转正","创业","合作","客户","谈判","签约","合同","职场"],
+           lens:"时机、助力与阻力",
+           good:"有助力和推进的窗口，适合争取、表态、把方案递上去",
+           bad:"阻力偏大或时机未到，先把能力/资源攒够，别硬顶，也别赌气",
+           action:"把关键节点列清楚，抓能主控的环节，其余顺势而为"},
+  wealth: {name:"财运", kw:["钱","财","投资","理财","收益","盈利","赚钱","买卖","生意","股票","基金","彩票","中奖","价格","报价","回款","买房","交易","借钱","欠款","加仓","定投"],
+           lens:"进退与风险",
+           good:"有进展但重在节奏，按既定计划分步走，别一次押满",
+           bad:"变数大、易起伏，守比攻重要，控制仓位、留足余地",
+           action:"先想清楚最坏情况能不能承受，再决定投入多少"},
+  study:  {name:"学业", kw:["考试","学习","成绩","升学","考研","高考","中考","论文","答辩","录取","证书","复习","读书","报名","资格证","过级","上岸","面试笔"],
+           lens:"积累与临场",
+           good:"状态与积累在往上走，按计划推进、稳住节奏就能兑现",
+           bad:"容易分心或卡在某个环节，回头补基础比硬刷新题更有效",
+           action:"把大目标拆成每天能完成的小块，规律比突击更管用"},
+  travel: {name:"出行", kw:["出行","旅行","旅游","出差","搬家","远行","路上","签证","航班","车票","搬迁","动身","行程","出门","开车","自驾"],
+           lens:"顺遂与变数",
+           good:"行程较顺，按计划走即可，宜提前把细节确认好",
+           bad:"易有延误或临时变动，留缓冲、备预案，别把时间卡太死",
+           action:"关键节点（交通/证件/天气）逐一复核，随身留余地"},
+  health: {name:"健康", kw:["健康","身体","生病","体检","手术","恢复","康复","睡眠","调理","症状","看病","住院","不舒服","养生","减肥"],
+           lens:"消耗与恢复",
+           good:"状态在回稳，规律作息、循序渐进就好",
+           bad:"提示消耗偏大，别硬撑，把休息和复查排进日程",
+           action:"把作息、饮食、复查落到实处；不适请及时就医，占卜不能替代医生"},
+  general:{name:"所问之事", kw:[], lens:"整体走势与当下处境",
+           good:"整体能量顺，适合顺着势头把手头的事往前推一步",
+           bad:"整体偏滞，宜守成、蓄力，先别开新摊子",
+           action:"先稳住能掌控的部分，等信号更明朗再加大投入"}
+};
+
+function detectTopic(question) {
+  if (!question) return {key:"general", ...TOPIC_LIB.general};
+  const q = question.toLowerCase();
+  let best = null, bestLen = 0;
+  for (const key in TOPIC_LIB) {
+    for (const kw of TOPIC_LIB[key].kw) {
+      if (q.includes(kw.toLowerCase()) && kw.length > bestLen) {
+        best = key; bestLen = kw.length;
+      }
+    }
+  }
+  return {key: best || "general", ...TOPIC_LIB[best || "general"]};
+}
+
+// —— 小六壬六宫详解 ——
+const XIAOLIU_DETAIL = {
+  "大安": {wx:"木", nature:"身安心稳，事事皆宜", img:"东方、静止、青龙",
+           read:"最稳的一宫。事情目前处在安定、可以放心的状态，根基没坏，不宜自己生事。",
+           good:"守成、等待、把基础夯实，静中自有进展",
+           caution:"别因为『太平』就贸然冒进，大安贵在不动如山",
+           time:"事缓则圆，多在数日之后见分晓"},
+  "留连": {wx:"土", nature:"反复拖延，事难一时了", img:"中央、纠缠、勾连",
+           read:"带拖延、牵扯之象。事情会拖上一阵，可能卡在某个环节反复，或有人情、旧事牵着。",
+           good:"耐心处理手头事、把未了的关系理清",
+           caution:"不宜催、不宜急，越急越胶着；警惕拖成不了了之",
+           time:"需 2–3 天甚至更久，宜设个复看的节点"},
+  "速喜": {wx:"火", nature:"喜事临门，快而有利", img:"南方、迅捷、朱雀",
+           read:"最利『快』的一宫。有好消息或机会正在靠近，且来得急，窗口不长。",
+           good:"速战速决、主动出击、及时回应",
+           caution:"喜在『快』，犹豫就会错过；但要确认信息属实再行动",
+           time:"就在当下或一两天内，抓住即走"},
+  "赤口": {wx:"金", nature:"口舌是非，防争执", img:"西方、口角、白虎",
+           read:"带口舌、争执之象。容易因一句话、一场沟通起摩擦，或遇到说话带刺的人。",
+           good:"谨言、留证、把话想清楚再说",
+           caution:"避免争论、避免签约时的口头承诺，重要沟通可延后",
+           time:"近期（数日内）留意沟通场合，过了这阵就好"},
+  "小吉": {wx:"水", nature:"小有所得，渐入佳境", img:"北方、和合、玄武",
+           read:"有进展但不大，属于『小步向前』的一宫。事情能成，只是别指望一步到位。",
+           good:"稳扎稳打、积累小胜、求和求合",
+           caution:"别贪大、别求快，期望放到『有进展』就合适",
+           time:"循序渐进，一点一点来"},
+  "空亡": {wx:"土", nature:"落空无成，宜另作打算", img:"中央、虚空、落空",
+           read:"最需谨慎的一宫。所问之事多半落空、无果或时机未至，硬求无益。",
+           good:"及时止损、重新评估目标、换个方向",
+           caution:"不宜强求、不宜在此事上继续加码；但『空』也可能是放下后的转机",
+           time:"此番难成，宜隔一段时间再议"}
+};
+
+// —— 梅花易数体用关系详解 ——
+const TIYONG_DETAIL = {
+  "用生体": {tone:"吉", mech:"用卦（对方/外部）生体卦（自己），外部的能量流向你",
+             read:"外部条件对你有利，容易得到助力、资源或他人的善意，属于『顺水推舟』的格局。",
+             good:"趁势而上、主动接住机会、把合作往前推", caution:"顺境里别忘把该落实的落实，别只等不动作"},
+  "体克用": {tone:"吉", mech:"体卦（自己）克用卦（外部），局面由你主导、可控",
+             read:"主动权在你手里，靠自己的能力可以拿下，只是要付出实打实的努力。",
+             good:"主动出击、按自己的节奏推进", caution:"『能控』不等于『轻松』，别轻敌、别省该下的功夫"},
+  "比和":   {tone:"平", mech:"体用五行相同，势均力敌、彼此相当",
+             read:"双方力量均衡，事情平稳但没有明显外力助推，成不成更看你的经营。",
+             good:"稳步经营、寻求中间人牵线、耐心磨合", caution:"别指望一蹴而就，也别僵持，找巧劲比使蛮力有效"},
+  "体生用": {tone:"小凶", mech:"体卦（自己）生用卦（外部），你的精力往外泄",
+             read:"你在为这件事持续输出、付出较多，有点吃力，回报未必跟得上投入。",
+             good:"评估投入产出是否值得，值得就专注、不值得就收手", caution:"注意别透支自己，别一味付出忘了看回报"},
+  "用克体": {tone:"凶", mech:"用卦（外部）克体卦（自己），外部压力压到你身上",
+             read:"外部环境或对方给你带来压力，阻力偏大，硬碰容易吃亏。",
+             good:"暂缓、调整策略、从侧面入手或借力化解", caution:"不宜强攻、不宜此刻硬顶，先避其锋芒"}
+};
+
+// —— 六十四卦白话核心义（按卦名；未收录的按吉凶兜底）——
+const GUA_BRIEF = {
+  "乾为天":"刚健进取，宜主动作为、自强不息","坤为地":"厚德包容，宜顺势承载、稳中求进",
+  "水雷屯":"初生艰难，万事起头难，宜积累勿急","山水蒙":"蒙昧待启，宜求教学习、理清方向",
+  "水天需":"等待时机，条件未熟宜耐心待机","天水讼":"争执分歧，宜和解止损、避免诉讼",
+  "地水师":"众人行事，宜有纪律与统率","水地比":"亲附合作，宜结盟靠拢、择善而从",
+  "风天小畜":"小有蓄积，力量尚浅宜缓图","天泽履":"如履薄冰，宜谨慎守礼、步步为营",
+  "地天泰":"天地交泰，通顺和畅，诸事顺遂","天地否":"闭塞不通，宜守静待变、勿强求",
+  "天火同人":"与人同心，宜合作共事、广结善缘","火天大有":"丰盛富有，宜把握成果、谦和守成",
+  "地山谦":"谦逊受益，低调反而得利","雷地豫":"顺势而动，宜愉悦振作、把握节奏",
+  "泽雷随":"随顺时势，宜灵活跟从、择善而随","山风蛊":"积弊待整，宜拨乱反正、整治旧疾",
+  "地泽临":"临近有为，宜趁势督导、把握当下","风地观":"观察省思，宜静观其变、看清再动",
+  "火雷噬嗑":"排除障碍，宜果断决断、明辨是非","山火贲":"文饰美化，宜修饰外在、适度即可",
+  "山地剥":"剥落衰退，宜守勿进、保存实力","地雷复":"一阳来复，转机初现宜顺势复起",
+  "天雷无妄":"顺其自然，勿妄动妄念、守正无虞","山天大畜":"厚积蓄养，宜充实实力、待时而用",
+  "山雷颐":"养身养正，宜慎言节食、休养生息","泽风大过":"负担过重，宜减负调整、非常慎行",
+  "坎为水":"重险相叠，宜沉着守正、稳渡难关","离为火":"附丽光明，宜依附正道、保持清明",
+  "泽山咸":"相互感应，宜以诚相通、情感交融","雷风恒":"持之以恒，宜守常不变、久久为功",
+  "天山遁":"退避为宜，宜适时抽身、明哲保身","雷天大壮":"阳气壮盛，宜顺势进取但戒鲁莽",
+  "火地晋":"上进升迁，宜积极向前、光明渐进","地火明夷":"光明受损，宜韬光养晦、藏锋守拙",
+  "风火家人":"齐家有道，宜各守其分、和睦内部","火泽睽":"乖异分歧，宜求同存异、小事可成",
+  "水山蹇":"前行艰险，宜止步回望、另寻他路","雷水解":"化解松开，宜解除负担、及时了结",
+  "山泽损":"有所减损，宜舍小就大、节制有度","风雷益":"增益有助，宜把握助力、积极施为",
+  "泽天夬":"决断清除，宜果决去弊、但戒躁进","天风姤":"不期而遇，宜审慎应对突如其来的事",
+  "泽地萃":"汇聚聚合，宜聚人聚力、共成其事","地风升":"步步高升，宜顺势向上、积渐而成",
+  "泽水困":"困顿受制，宜守正忍耐、静待转圜","水风井":"井养不穷，宜固本培源、持之以恒",
+  "泽火革":"变革除旧，宜顺天应人、择机而变","火风鼎":"鼎新立稳，宜更新格局、稳固新局",
+  "震为雷":"震动惊起，宜镇定应变、有声有势","艮为山":"静止抑止，宜知止当止、稳住不动",
+  "风山渐":"循序渐进，宜按部就班、不急不躁","雷泽归妹":"勉强相就，宜审慎名分、防失其正",
+  "雷火丰":"丰盛壮大，宜把握盛时、居安思危","火山旅":"旅途在外，宜谦逊谨慎、随遇而安",
+  "巽为风":"顺入渗透，宜柔顺渐进、潜移默化","兑为泽":"和悦相交，宜以和为贵、坦诚沟通",
+  "风水涣":"涣散消解，宜凝聚人心、疏通隔阂","水泽节":"节制有度，宜守分寸、量力而行",
+  "风泽中孚":"诚信感通，宜以诚待人、内外一致","雷山小过":"小有过越，宜谨小慎微、勿好高骛远",
+  "水火既济":"事已成定，宜守成防懈、慎终如始","火水未济":"事尚未竟，宜继续努力、审慎收尾"
+};
+
+function guaBrief(name) {
+  if (!name) return "卦象提示：审慎评估，稳步而行";
+  if (GUA_BRIEF[name]) return GUA_BRIEF[name];
+  // 兜底：按 LIUSHI4_JUDGE 吉凶给通用白话
+  const j = LIUSHI4_JUDGE[name];
+  if (j && (j.includes("大吉") || j === "吉")) return "卦象偏吉，顺势推进、把握时机，同时把细节落实";
+  if (j && j.includes("凶")) return "卦象偏滞，宜稳守蓄力、调整策略，不宜贸然冒进";
+  return "卦象平稳，按部就班、稳中求进即可";
+}
+
+// ============================================================
+// 解读引擎：把「排盘结果 + 占问事项」组合成有条理的分析
+// ============================================================
+
+// 通用：取一个确定性「微变体」，避免每次文案完全一样（基于字符串哈希）
+function pickVariant(arr, seedStr) {
+  let h = 0; for (const ch of seedStr) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return arr[h % arr.length];
+}
+
+// 通用：生成「结合事项」段落
+function topicSection(topic, tone, extraTag) {
+  // tone: 'good' | 'bad' | 'neutral'
+  const key = tone === "good" ? "good" : tone === "bad" ? "bad" : "lens";
+  let body;
+  if (tone === "neutral") {
+    body = `就「${topic.name}」而言，重点看${topic.lens}。当前信号不算极端，吉凶并陈，宜${topic.action}。`;
+  } else {
+    body = `就你问的「${topic.name}」这件事，重点看${topic.lens}：${topic[tone]}。`;
+  }
+  let html = `<div class="ana-topic"><span class="ana-tag">结合所问</span>${body}`;
+  if (topic.action && tone !== "neutral") html += `<br><span class="ana-hint">落脚点：${topic.action}。</span>`;
+  html += `</div>`;
+  return html;
+}
+
+// 通用：结尾理性提示
+function rationalNote() {
+  return `<p class="ana-note">以上为术数传统的象义推演，用来换个角度观察时机与处境，仅供参考；重大决定请以现实信息、专业意见与自身判断为准。</p>`;
+}
 
 function now() {
   const d = new Date();
@@ -836,6 +1088,12 @@ function xiaoliuByNumbers(n1, n2, n3) {
   return { method: "数字起课", input: `数字 ${n1},${n2},${n3}`, tian, di, ren, hourIdx };
 }
 
+// 六宫吉凶权重，用于判断三宫整体倾向
+function gongWeight(name) {
+  return ({'大吉':2,'吉':1,'小吉':0.5,'凶':-1,'大凶':-2})[XIAOLIU_JIXIONG[name]] || 0;
+}
+function toneOfWeight(w) { return w > 0.4 ? 'good' : w < -0.4 ? 'bad' : 'neutral'; }
+
 function renderXiaoliu(res, question) {
   const tian = XIAOLIU_GONG[res.tian];
   const di = XIAOLIU_GONG[res.di];
@@ -843,36 +1101,46 @@ function renderXiaoliu(res, question) {
   const renJx = XIAOLIU_JIXIONG[ren];
   const jxClass = renJx.includes('大吉') || renJx === '吉' ? 'lucky' :
                   renJx.includes('凶') || renJx === '大凶' ? 'unlucky' : 'neutral';
+  const topic = detectTopic(question);
   const now2 = now();
+  const dT = XIAOLIU_DETAIL[tian], dD = XIAOLIU_DETAIL[di], dR = XIAOLIU_DETAIL[ren];
+
   let html = `<h3>🔮 小六壬占卜结果</h3>`;
   html += `<p>占卜时间：${now2.year}年${now2.month}月${now2.day}日 ${String(now2.hour).padStart(2,'0')}:${String(now2.minute).padStart(2,'0')}</p>`;
-  if (question) html += `<p>占问事项：${question}</p>`;
+  if (question) html += `<p>占问事项：${question}　<span class="ana-tag">${topic.name}</span></p>`;
   html += `<p>起课方式：${res.method}（${res.input}）</p>`;
-  html += `<h3>三宫结果</h3>`;
-  html += `<p>天宫：${tian}（${XIAOLIU_JIXIONG[tian]}）— ${XIAOLIU_WUXING[tian]}行</p>`;
-  html += `<p>地宫：${di}（${XIAOLIU_JIXIONG[di]}）— ${XIAOLIU_WUXING[di]}行</p>`;
-  html += `<p>人宫：<span class="${jxClass}">${ren}（${renJx}）</span> — ${XIAOLIU_WUXING[ren]}行</p>`;
-  html += `<h3>综合解读</h3>`;
-  // 白话解读
-  const tips = {
-    "大安": "事态平稳，安心等待，不宜轻举妄动。若为工作之事，预示稳定无虞。",
-    "留连": "事情有拖延之象，需要耐心等待，不宜急躁推进。",
-    "速喜": "喜事将近，适宜快速行动，抓住机会。感情方面有好事。",
-    "赤口": "口舌是非较多，宜少说话多做事，避免与人争执。",
-    "小吉": "小有收获，事情有进展但不大，需要稳扎稳打。",
-    "空亡": "事情落空之象，宜另寻他法或暂时放弃，不宜强求。"
-  };
-  html += `<p>${tips[ren]}</p>`;
-  html += `<h3>建议行动</h3>`;
-  const actions = {
-    "大安": "宜静守，等待时机。可做一些准备工作，不宜贸然行动。",
-    "留连": "耐心处理手头事务，不要急于求成。可先做其他事，过几日再看。",
-    "速喜": "抓住当下机会，主动出击。适合表白、签约、提出要求。",
-    "赤口": "谨言慎行，避免与人争论。可将重要沟通延后进行。",
-    "小吉": "稳步推进，小步快跑。不要期望一步到位，积累小胜。",
-    "空亡": "重新评估目标是否现实。如不行，及时止损，换个方向。"
-  };
-  html += `<p>${actions[ren]}</p>`;
+
+  html += `<h3>三宫排盘</h3>`;
+  html += `<p>天宫　<b>${tian}</b>（${XIAOLIU_JIXIONG[tian]} · ${dT.wx}）　<span class="ana-hint">主天时、起因、外部大势</span></p>`;
+  html += `<p>地宫　<b>${di}</b>（${XIAOLIU_JIXIONG[di]} · ${dD.wx}）　<span class="ana-hint">主过程、环境、人事周旋</span></p>`;
+  html += `<p>人宫　<b class="${jxClass}">${ren}</b>（${renJx} · ${dR.wx}）　<span class="ana-hint">主结果、自身落点（最重）</span></p>`;
+
+  html += `<h3>逐宫详解</h3>`;
+  html += `<div class="ana-step"><b>① 天宫 · ${tian}｜事情怎么起的</b><br>${dT.read}<br><span class="ana-hint">象义 ${dT.img}，${dT.nature}。</span></div>`;
+  html += `<div class="ana-step"><b>② 地宫 · ${di}｜中间怎么走</b><br>${dD.read}<br><span class="ana-hint">象义 ${dD.img}，${dD.nature}。</span></div>`;
+  html += `<div class="ana-step"><b>③ 人宫 · ${ren}｜最后落到哪</b><br>${dR.read}<br><span class="ana-hint">象义 ${dR.img}，${dR.nature}。</span></div>`;
+
+  // 三宫联动：起因 → 过程 → 结果的因果链 + 吉凶分布
+  const wT = gongWeight(tian), wD = gongWeight(di), wR = gongWeight(ren);
+  let spread;
+  if (wT>0 && wD>0 && wR>0) spread = "三宫皆吉、信号一致，属于顺局，可以放心顺势推进";
+  else if (wT<0 && wD<0 && wR<0) spread = "三宫皆凶、阻力贯穿首尾，宜守不宜进，先避锋芒";
+  else if (wR>0 && (wT<0 || wD<0)) spread = "起头或过程有波折，但人宫落点是吉的——先难后易，熬过中段就见转机";
+  else if (wR<0 && (wT>0 || wD>0)) spread = "开局看着顺、落点却转弱，要防后劲不足，别被开头的好兆头带大意";
+  else spread = "吉凶并陈、三宫不齐，事态会有反复，宜分阶段应对、走一步看一步";
+
+  html += `<h3>三宫联动 · 事态脉络</h3>`;
+  html += `<div class="ana-chain">这件事从「${dT.nature}」的外部大势起步，经过「${dD.nature}」的过程周旋，最终收束在「${dR.nature}」的落点上。小六壬以<b>人宫定音</b>，所以整件事的基调判为 <span class="${jxClass}">${renJx}</span>。再看三宫配合：${spread}。</div>`;
+
+  const totalW = wT + wD + wR;
+  html += `<h3>综合判断</h3>`;
+  html += `<p>三宫合计「${totalW>0.4?'偏吉':totalW<-0.4?'偏凶':'吉凶相抵'}」，${spread}。核心依据是<b>人宫 ${ren}</b>：${dR.read}</p>`;
+
+  html += topicSection(topic, toneOfWeight(wR));
+
+  html += `<h3>时机与建议</h3>`;
+  html += `<div class="ana-step"><b>宜</b>：${dR.good}。<br><b>忌</b>：${dR.caution}。<br><b>应期</b>：${dR.time}。</div>`;
+  html += rationalNote();
   return html;
 }
 
@@ -942,39 +1210,46 @@ function buildMeihuaResult(upper, lower, dongYao, method, input) {
            dongYao, tiGua, yongGua, tiWx, yongWx, rel, jixiong };
 }
 
+// 动爻所处阶段（初爻→上爻 = 事情由萌生到收尾）
+const YAO_STAGE = [
+  "事之初萌，端倪初现，宜打好底子、不宜急着要结果",
+  "渐入状态，内部开始酝酿，重在把分寸拿稳",
+  "处下卦之极、将往上走，是关键转折，多有小摩擦或考验",
+  "进入上卦、局面打开，外部因素变多，宜借势与协同",
+  "居尊得中，是最有利的位置，主事者有主导权，宜果断",
+  "事之终位，到了收束或过犹不及的阶段，宜守成、防亢进"
+];
+
 function renderMeihua(res, question) {
   const jxClass = res.jixiong.includes('吉') && !res.jixiong.includes('小凶') ? 'lucky' :
                   res.jixiong.includes('凶') ? 'unlucky' : 'neutral';
+  const topic = detectTopic(question);
+  const ty = TIYONG_DETAIL[res.rel] || TIYONG_DETAIL["比和"];
   const now2 = now();
   let html = `<h3>🎲 梅花易数起卦结果</h3>`;
   html += `<p>占卜时间：${now2.year}年${now2.month}月${now2.day}日 ${String(now2.hour).padStart(2,'0')}:${String(now2.minute).padStart(2,'0')}</p>`;
-  if (question) html += `<p>占问事项：${question}</p>`;
+  if (question) html += `<p>占问事项：${question}　<span class="ana-tag">${topic.name}</span></p>`;
   html += `<p>起卦方式：${res.method}（${res.input}）</p>`;
   html += `<div class="gua-symbol">${res.upperSymbol}${res.lowerSymbol}</div>`;
-  html += `<p>本卦：<b>${res.guaName}</b></p>`;
-  html += `<p>动爻：第 ${res.dongYao} 爻</p>`;
-  html += `<h3>体用分析</h3>`;
-  html += `<p>体卦：${res.tiGua}（${res.tiWx}）— 代表自己/主体</p>`;
-  html += `<p>用卦：${res.yongGua}（${res.yongWx}）— 代表对方/事体</p>`;
-  html += `<p>体用关系：<span class="${jxClass}">${res.rel} → ${res.jixiong}</span></p>`;
-  html += `<h3>白话解读</h3>`;
-  const tips = {
-    "用生体": "对方或外部环境对你有利，有人相助，事情向好发展。",
-    "体克用": "你可以掌控局面，主动推进能有收获，但需付出努力。",
-    "比和": "双方势均力敌，事情发展平稳，需要更多耐心和技巧。",
-    "体生用": "你需要付出较多精力，有点吃力，注意别过度消耗自己。",
-    "用克体": "外部环境或对方带来压力，事情阻力较大，建议暂缓或调整策略。"
-  };
-  html += `<p>${tips[res.rel] || "请结合具体事项分析。"}</p>`;
+  html += `<p>本卦：<b>${res.guaName}</b>　｜　动爻：第 ${res.dongYao} 爻</p>`;
+
+  html += `<h3>卦象与体用</h3>`;
+  html += `<div class="ana-step"><b>本卦 · ${res.guaName}</b>：${guaBrief(res.guaName)}。<br><span class="ana-hint">上卦 ${res.upperName}、下卦 ${res.lowerName} 构成这一卦，定了整件事的大框架。</span></div>`;
+  html += `<div class="ana-step"><b>体卦 · ${res.tiGua}（${res.tiWx}）</b>：代表你自己 / 主体。<br><b>用卦 · ${res.yongGua}（${res.yongWx}）</b>：代表对方 / 外部环境 / 事体。</div>`;
+  html += `<div class="ana-chain"><b>体用关系：${res.rel} → <span class="${jxClass}">${res.jixiong}</span></b><br>${ty.mech}。${ty.read}</div>`;
+
+  html += `<h3>动爻 · 事情走到哪一步</h3>`;
+  html += `<p>动爻在第 ${res.dongYao} 爻：${YAO_STAGE[res.dongYao-1]}。梅花以动爻看变化的着力点，这一爻提示你当前最该留意的环节。</p>`;
+  html += `<p class="ana-hint">把三层合起来看：卦象定「${res.guaName}」的大势，体用定「${ty.tone}」的力量对比，动爻定「第${res.dongYao}爻」的变化位置——三者共同指向这件事当下的格局。</p>`;
+
+  const tone = ty.tone === '吉' ? 'good' : ty.tone === '凶' ? 'bad' : (ty.tone === '小凶' ? 'bad' : 'neutral');
+  html += `<h3>综合判断</h3>`;
+  html += `<p>整体格局偏「${ty.tone}」：${ty.read}${guaBrief(res.guaName)}。</p>`;
+  html += topicSection(topic, tone);
+
   html += `<h3>建议行动</h3>`;
-  const actions = {
-    "用生体": "趁势而上，积极行动。对方有诚意，合作事宜可推进。",
-    "体克用": "主动出击，但注意方式方法。你的能力足够，关键是执行力。",
-    "比和": "需要更多耐心，可寻求中间人协助，或等待更好时机。",
-    "体生用": "评估付出与回报是否匹配。如值得，全力以赴；如不值得，及时调整。",
-    "用克体": "不宜强攻，建议改变策略或从侧面入手。如暂时无解，先放一放。"
-  };
-  html += `<p>${actions[res.rel] || "结合具体事项判断。"}</p>`;
+  html += `<div class="ana-step"><b>宜</b>：${ty.good}。<br><b>忌</b>：${ty.caution}。</div>`;
+  html += rationalNote();
   return html;
 }
 
@@ -1051,40 +1326,68 @@ function liuyaoCast() {
 function renderLiuyao(res, question) {
   const now2 = now();
   const posNames = ["初爻","二爻","三爻","四爻","五爻","上爻"];
+  const topic = detectTopic(question);
+  const dongCount = res.dongYaos.length;
+  const hasBian = dongCount > 0 && res.bianGua !== "无变卦";
+  const benJx = LIUSHI4_JUDGE[res.benGua] || "平";
+  const bianJx = hasBian ? (LIUSHI4_JUDGE[res.bianGua] || "平") : null;
+  const JXW = {'大吉':2,'吉':1,'小吉':0.5,'平':0,'凶':-1,'大凶':-2};
+
   let html = `<h3>📿 六爻起卦结果</h3>`;
   html += `<p>起卦时间：${now2.year}年${now2.month}月${now2.day}日 ${String(now2.hour).padStart(2,'0')}:${String(now2.minute).padStart(2,'0')}</p>`;
-  if (question) html += `<p>占问事项：${question}</p>`;
+  if (question) html += `<p>占问事项：${question}　<span class="ana-tag">${topic.name}</span></p>`;
 
-  // 画爻线
   html += `<div class="gua-symbol">本卦：${BAGUA_SYMBOL[res.upperName]}${BAGUA_SYMBOL[res.lowerName]}</div>`;
-  html += `<p>本卦：<b>${res.benGua}</b></p>`;
-  if (res.dongYaos.length) {
-    html += `<p>变卦：<b>${res.bianGua}</b></p>`;
-    html += `<p>动爻：${res.dongYaos.map(d => posNames[d-1]).join('、')}</p>`;
-  } else {
-    html += `<p>动爻：无（静卦，事态胶着，需外力推动）</p>`;
+  html += `<p>本卦：<b>${res.benGua}</b>（${benJx}）${hasBian ? `　→　变卦：<b>${res.bianGua}</b>（${bianJx}）` : `　｜　静卦无变`}</p>`;
+  html += `<p>动爻：${dongCount ? res.dongYaos.map(d => posNames[d-1]).join('、') : '无（六爻皆静）'}</p>`;
+
+  html += `<h3>卦意详解</h3>`;
+  html += `<div class="ana-step"><b>本卦 · ${res.benGua}｜当前的局面</b><br>${guaBrief(res.benGua)}。<br><span class="ana-hint">这一卦说的是事情「现在」处在什么状态。</span></div>`;
+  if (hasBian) {
+    html += `<div class="ana-step"><b>变卦 · ${res.bianGua}｜发展的去向</b><br>${guaBrief(res.bianGua)}。<br><span class="ana-hint">动爻一变，本卦转成变卦，代表事情「往后」会演变成什么。</span></div>`;
   }
 
+  html += `<h3>动爻 · 变化从哪来</h3>`;
+  if (dongCount === 0) {
+    html += `<p>六爻皆静，是<b>静卦</b>：事态目前胶着、变化不大，成因多已定型。静卦不是没结果，而是「不会自己变好」——需要你主动推一把、或等外力介入才能打破僵局。</p>`;
+  } else if (dongCount === 1) {
+    html += `<p>只有一个动爻（${posNames[res.dongYaos[0]-1]}），变化集中而清晰：${YAO_STAGE[res.dongYaos[0]-1]}。这时候重点看变卦的趋势，顺着这一处变化去调整就够了。</p>`;
+  } else {
+    html += `<p>共有 ${dongCount} 个动爻（${res.dongYaos.map(d=>posNames[d-1]).join('、')}），说明牵动的环节多、局势变动快，头绪较杂。这种卦不宜固守单一计划，要留弹性、抓主要矛盾。</p>`;
+  }
+
+  // 综合：本卦 + 变卦的吉凶走向
+  let trend, trendTone;
+  if (!hasBian) {
+    trendTone = toneOfWeight(JXW[benJx]||0);
+    trend = `静卦以本卦「${res.benGua}」为准，格局偏「${benJx}」，${guaBrief(res.benGua)}。因为无动爻，吉凶主要看你能否主动推动。`;
+  } else {
+    const dw = (JXW[bianJx]||0) - (JXW[benJx]||0);
+    if (dw > 0.4) { trendTone='good'; trend=`从本卦「${res.benGua}」（${benJx}）变到「${res.bianGua}」（${bianJx}），<b>趋势转好</b>：眼下或有阻滞，但事情正朝有利方向演变，值得坚持、顺势加把力。`; }
+    else if (dw < -0.4) { trendTone='bad'; trend=`从本卦「${res.benGua}」（${benJx}）变到「${res.bianGua}」（${bianJx}），<b>趋势转弱</b>：开局尚可，但往后能量在减，宜见好就收、或提前调整，别一路硬撑。`; }
+    else { trendTone = toneOfWeight(JXW[benJx]||0); trend=`本卦「${res.benGua}」与变卦「${res.bianGua}」吉凶相当（${benJx}→${bianJx}），<b>走势平稳</b>：大局延续现状，变化不改变基调，按既定节奏走即可。`; }
+  }
+  html += `<h3>综合判断 · 走势</h3>`;
+  html += `<div class="ana-chain">${trend}</div>`;
+  html += topicSection(topic, trendTone);
+
+  html += `<h3>建议行动</h3>`;
+  if (dongCount === 0) {
+    html += `<div class="ana-step">静卦宜主动破局：别等事情自动变好，自己先动一下——主动沟通、递方案、把卡住的环节推一步。</div>`;
+  } else if (trendTone === 'good') {
+    html += `<div class="ana-step">变卦转吉，可坚持并适度加码；盯住动爻提示的环节（${res.dongYaos.map(d=>posNames[d-1]).join('、')}），顺势而为。</div>`;
+  } else if (trendTone === 'bad') {
+    html += `<div class="ana-step">变卦转弱，宜及时收手或换向：把关键节点提前收尾、落袋为安，别在走弱的方向上继续加投入。</div>`;
+  } else {
+    html += `<div class="ana-step">走势平稳，按既定节奏推进即可；留意动爻处（${res.dongYaos.map(d=>posNames[d-1]).join('、')}）的细微变化，稳中把关。</div>`;
+  }
   html += `<h3>掷卦过程</h3>`;
+  html += `<details style="margin-top:4px;"><summary style="cursor:pointer;color:#f0d060;">展开六次掷卦明细</summary>`;
   for (const d of [...res.details].reverse()) {
     html += `<p>第${d.pos}掷（${posNames[d.pos-1]}）：${d.coins} → ${d.yaoName} ${d.desc}</p>`;
   }
-
-  html += `<h3>综合解读</h3>`;
-  if (res.dongYaos.length === 0) {
-    html += `<p>此卦为静卦，说明事情目前处于胶着状态，变化不大。需要你主动推动，外力介入才能打破僵局。</p>`;
-  } else if (res.dongYaos.length >= 2) {
-    html += `<p>此卦动爻较多（${res.dongYaos.length}个），说明事情变化较快，局势不稳定。需要灵活应对，不宜固守原计划。</p>`;
-  } else {
-    html += `<p>此卦有一个动爻，事情正在发生变化。关注变卦「${res.bianGua}」的趋势，顺着变化调整策略。</p>`;
-  }
-
-  html += `<h3>建议行动</h3>`;
-  if (res.dongYaos.length === 0) {
-    html += `<p>静卦宜主动出击。不要等待事情自动变好，自己推动一下，比如主动沟通、提出方案。</p>`;
-  } else {
-    html += `<p>有动爻说明事情已经在变化中。观察变卦方向，顺势而为。如变卦比本卦更吉，则坚持；如变卦转凶，则及时调整。</p>`;
-  }
+  html += `</details>`;
+  html += rationalNote();
   return html;
 }
 
@@ -1128,15 +1431,25 @@ function tarotDraw(count) {
   });
 }
 
+// 花色主题权重（用于整体关联分析）
+const SUIT_LENS = {
+  "大阿尔卡纳": "人生层面的大主题、较难凭一己之力左右的外部力量",
+  "权杖": "行动、热情与事业冲劲",
+  "圣杯": "情感、关系与内心感受",
+  "宝剑": "思虑、沟通与冲突决断",
+  "星币": "金钱、工作与现实落地"
+};
+
 function renderTarot(cards, mode, question) {
   const now2 = now();
-  let html = `<h3>🃏 塔罗牌抽牌结果</h3>`;
-  html += `<p>抽牌时间：${now2.year}年${now2.month}月${now2.day}日</p>`;
-  if (question) html += `<p>占问事项：${question}</p>`;
-
+  const topic = detectTopic(question);
   const positions = mode === 1 ? ["当下指引"] :
                     mode === 3 ? ["过去·原因", "现在·状况", "未来·结果"] :
                     ["核心问题", "挑战/障碍", "过去影响", "现在状况", "可能结果"];
+
+  let html = `<h3>🃏 塔罗牌抽牌结果</h3>`;
+  html += `<p>抽牌时间：${now2.year}年${now2.month}月${now2.day}日</p>`;
+  if (question) html += `<p>占问事项：${question}　<span class="ana-tag">${topic.name}</span></p>`;
 
   html += `<div class="tarot-cards">`;
   cards.forEach((c, i) => {
@@ -1149,24 +1462,87 @@ function renderTarot(cards, mode, question) {
   });
   html += `</div>`;
 
-  html += `<h3>牌面解读</h3>`;
+  // ===== 逐张释义：每张牌单独说清含义 =====
+  html += `<h3>逐张牌义</h3>`;
   cards.forEach((c, i) => {
-    const meaning = TAROT_MEANING[c.card];
-    const tip = c.isUp ? (meaning ? meaning.up : "请结合自身情况理解") :
-                         (meaning ? meaning.down : "请结合自身情况理解");
-    html += `<p><b>${positions[i]||'第'+(i+1)+'张'} — ${c.card}（${c.orientation}）</b>：<br>${tip}</p>`;
+    const m = TAROT_MEANING[c.card];
+    const pos = positions[i] || `第${i+1}张`;
+    if (!m) {
+      html += `<div class="ana-step"><b>${pos} · ${c.card}（${c.orientation}）</b><br>此牌需结合你所问的事与当下处境来理解。</div>`;
+      return;
+    }
+    const reading = c.isUp ? m.up : m.down;
+    const dirHint = c.isUp ? "正位，能量顺畅地展现" : "逆位，能量受阻或转向内在";
+    html += `<div class="ana-step"><b>${pos} · ${c.card}（${c.orientation}）</b>　<span class="ana-tag">${m.k}</span><br>${reading}。<br><span class="ana-hint">这张牌落在「${pos}」的位置，${dirHint}；核心意象是「${m.k}」，主题关乎${m.t}。</span></div>`;
   });
 
-  html += `<h3>综合建议</h3>`;
+  // ===== 关联分析：把几张牌串起来看 =====
   const upCount = cards.filter(c => c.isUp).length;
   const downCount = cards.length - upCount;
-  if (upCount > downCount) {
-    html += `<p>正位牌较多，整体能量向好。事情有积极发展的趋势，建议保持信心，主动推进。</p>`;
-  } else if (downCount > upCount) {
-    html += `<p>逆位牌较多，当前面临一些阻碍或内在挑战。不要气馁，逆位也意味着转机——问题已经暴露，解决就有了方向。</p>`;
-  } else {
-    html += `<p>正逆位牌数量相当，说明事情存在两面性。需要权衡利弊，理性决策。</p>`;
+  const majorCount = cards.filter(c => c.suit === "大阿尔卡纳").length;
+  const suitCount = {};
+  cards.forEach(c => { suitCount[c.suit] = (suitCount[c.suit]||0) + 1; });
+  const dominantSuit = Object.keys(suitCount).sort((a,b)=>suitCount[b]-suitCount[a])[0];
+  const themeSet = [...new Set(cards.map(c => TAROT_MEANING[c.card] ? TAROT_MEANING[c.card].t : null).filter(Boolean))];
+
+  html += `<h3>整体关联 · 这几张牌合起来在说什么</h3>`;
+
+  // 1) 正逆位基调
+  let energyTone, energyText;
+  if (upCount === cards.length) energyText = "清一色正位，能量通畅无阻，是明确的顺势之象";
+  else if (downCount === cards.length) energyText = "清一色逆位，处处受阻、需要向内调整，是提醒你先停下来复盘的格局";
+  else if (upCount > downCount) energyText = `正位 ${upCount} 张、逆位 ${downCount} 张，整体能量向好但并非毫无阻力，主线是顺的、局部要留意`;
+  else if (downCount > upCount) energyText = `逆位 ${downCount} 张、正位 ${upCount} 张，阻碍与内在课题偏多，重点是先化解卡点再谈推进`;
+  else energyText = "正逆位各半，事情有明显的两面性，进与退的张力并存，宜权衡后再定";
+  energyTone = upCount > downCount ? 'good' : downCount > upCount ? 'bad' : 'neutral';
+
+  html += `<div class="ana-chain"><b>能量基调</b>：${energyText}。</div>`;
+
+  // 2) 大牌/小牌 与 花色分布
+  const structParts = [];
+  if (majorCount === 0) structParts.push("全是小牌，说明这件事更多在日常、可掌控的层面，靠具体行动就能改变，不必想得太重");
+  else if (majorCount >= Math.ceil(cards.length/2)) structParts.push(`出现 ${majorCount} 张大阿尔卡纳，命理/大环境层面的力量较重，有些环节不完全由你决定，宜顺势而非强扭`);
+  else structParts.push(`含 ${majorCount} 张大牌、${cards.length-majorCount} 张小牌，大方向有外力牵引，但落到日常仍有你可自主操作的空间`);
+  if (dominantSuit && suitCount[dominantSuit] >= 2)
+    structParts.push(`「${dominantSuit}」最集中（出现 ${suitCount[dominantSuit]} 张），整副牌的关切明显压在${SUIT_LENS[dominantSuit]}上`);
+  html += `<div class="ana-chain"><b>结构与主题</b>：${structParts.join('；')}。${themeSet.length ? `牌面贯穿的主题是「${themeSet.join('、')}」。` : ''}</div>`;
+
+  // 3) 位置叙事链（多牌阵才展开）
+  if (mode >= 3) {
+    const kws = cards.map(c => TAROT_MEANING[c.card] ? TAROT_MEANING[c.card].k : "变化");
+    let chain;
+    if (mode === 3) {
+      chain = `按「过去 → 现在 → 未来」串起来看：起因是「${kws[0]}」（${cards[0].orientation}），演变成当下的「${kws[1]}」（${cards[1].orientation}），若顺着这股势头走，指向的落点是「${kws[2]}」（${cards[2].orientation}）。`;
+      if (cards[2].isUp && !cards[1].isUp) chain += ` 值得注意的是现在虽卡、未来却转正位——眼下的不顺更像过渡，坚持过去会松开。`;
+      else if (!cards[2].isUp && cards[1].isUp) chain += ` 但未来位是逆位，提示当下看着顺、后面易生变数，别掉以轻心。`;
+    } else {
+      chain = `五张牌铺开：核心是「${kws[0]}」，主要障碍落在「${kws[1]}」，过去的「${kws[2]}」仍在影响，现在处在「${kws[3]}」，可能的结果是「${kws[4]}」。把「障碍」与「现状」两张对着看，就是眼下最该使劲的地方。`;
+    }
+    html += `<div class="ana-chain"><b>牌阵脉络</b>：${chain}</div>`;
   }
+
+  html += `<h3>综合判断</h3>`;
+  if (mode === 1) {
+    const m0 = TAROT_MEANING[cards[0].card];
+    html += `<p>单张牌给的是此刻最该抓住的一个提示：${m0 ? (cards[0].isUp?m0.up:m0.down) : '结合自身处境理解'}。就这一张看，整体基调「${energyTone==='good'?'偏顺':energyTone==='bad'?'偏滞':'中性'}」。</p>`;
+  } else {
+    const kTop = cards.map(c => TAROT_MEANING[c.card] ? TAROT_MEANING[c.card].k : '变化');
+    html += `<p>把逐张牌义（${kTop.join(' → ')}）、能量基调与牌阵脉络合起来看：正位 ${upCount}、逆位 ${downCount}，${majorCount ? `含 ${majorCount} 张大牌` : '皆为小牌'}，主线落在「${themeSet.slice(0,2).join('、')||'当下处境'}」上。几层信息相互印证，整体判为「${energyTone==='good'?'偏顺':energyTone==='bad'?'偏滞':'成败参半'}」。</p>`;
+  }
+  html += topicSection(topic, energyTone);
+
+  html += `<h3>建议行动</h3>`;
+  const downCards = cards.filter(c => !c.isUp);
+  let advice;
+  if (energyTone === 'good') {
+    advice = `顺势推进，把正位牌提示的能量用在实处${downCards.length ? `；同时照顾好逆位的「${downCards.map(c=>TAROT_MEANING[c.card]?TAROT_MEANING[c.card].k:c.card).join('、')}」——那是需要补的短板` : ''}。`;
+  } else if (energyTone === 'bad') {
+    advice = `先别急着推进，把逆位牌点出的卡点（${downCards.map(c=>TAROT_MEANING[c.card]?TAROT_MEANING[c.card].k:c.card).join('、')}）逐个化解；逆位往往也是转机，问题暴露了才有解。`;
+  } else {
+    advice = `权衡两面再定夺，别只看到顺的一面或只盯着阻力；可先把风险低的一步走出去试探，再决定要不要加码。`;
+  }
+  html += `<div class="ana-step">${advice}</div>`;
+  html += rationalNote();
   return html;
 }
 
@@ -1375,78 +1751,75 @@ function renderSanfa(xl, mh, ly, question) {
   const xlJ = getXiaoliuJudgment(xl);
   const mhJ = getMeihuaJudgment(mh);
   const lyJ = getLiuyaoJudgment(ly);
+  const topic = detectTopic(question);
 
-  // 综合权重
   const totalWeight = xlJ.weight + mhJ.weight + lyJ.weight;
-  let overall, overallClass, overallIcon;
-  if (totalWeight >= 2) {
-    overall = '三法皆吉，大吉之象，可全力推进。';
-    overallClass = 'lucky'; overallIcon = '✅';
-  } else if (totalWeight >= 0.5) {
-    overall = '两吉一平或三法偏吉，整体向好，建议积极推进。';
-    overallClass = 'lucky'; overallIcon = '✅';
-  } else if (totalWeight > -0.5) {
-    overall = '吉凶参半，事态复杂，需审慎决策，分步推进。';
-    overallClass = 'neutral'; overallIcon = '⚠️';
-  } else if (totalWeight > -2) {
-    overall = '两凶一吉或偏凶，阻力较大，建议暂缓或调整策略。';
-    overallClass = 'unlucky'; overallIcon = '⚠️';
-  } else {
-    overall = '三法皆凶或大凶，建议放弃当前方案，另寻他途。';
-    overallClass = 'unlucky'; overallIcon = '❌';
-  }
+  let overall, overallClass, overallIcon, overallTone;
+  if (totalWeight >= 2) { overall = '三法合力指向吉利，是大吉之象，可全力推进。'; overallClass='lucky'; overallIcon='✅'; overallTone='good'; }
+  else if (totalWeight >= 0.5) { overall = '三法整体偏吉，趋势向好，建议积极推进。'; overallClass='lucky'; overallIcon='✅'; overallTone='good'; }
+  else if (totalWeight > -0.5) { overall = '吉凶参半，事态复杂，需审慎决策、分步推进。'; overallClass='neutral'; overallIcon='⚠️'; overallTone='neutral'; }
+  else if (totalWeight > -2) { overall = '阻力大于助力，整体偏凶，建议暂缓或调整策略。'; overallClass='unlucky'; overallIcon='⚠️'; overallTone='bad'; }
+  else { overall = '三法皆指向不吉，建议放弃当前方案、另寻他途。'; overallClass='unlucky'; overallIcon='❌'; overallTone='bad'; }
+
+  const xlGong = XIAOLIU_GONG[xl.ren];
+  const xlDetail = XIAOLIU_DETAIL[xlGong];
+  const ty = TIYONG_DETAIL[mh.rel] || TIYONG_DETAIL["比和"];
+  const posNames = ["初爻","二爻","三爻","四爻","五爻","上爻"];
 
   let html = `<h3>🔮 三法合参占断结果</h3>`;
   html += `<p>占卜时间：${now2.year}年${now2.month}月${now2.day}日 ${String(now2.hour).padStart(2,'0')}:${String(now2.minute).padStart(2,'0')}</p>`;
-  html += `<p><b>占问事项：${question}</b></p>`;
+  html += `<p><b>占问事项：${question}</b>　<span class="ana-tag">${topic.name}</span></p>`;
+  html += `<p class="ana-hint">三法合参的思路：三门术数各自独立起卦，再看结论是否互相印证。一致 → 置信度高；矛盾 → 如实说明分歧与侧重，不硬凑。</p>`;
 
-  // ---- 小六壬 ----
-  const xlGong = [XIAOLIU_GONG[xl.tian], XIAOLIU_GONG[xl.di], XIAOLIU_GONG[xl.ren]];
-  const xlJx = [XIAOLIU_JIXIONG[xlGong[0]], XIAOLIU_JIXIONG[xlGong[1]], XIAOLIU_JIXIONG[xlGong[2]]];
-  html += `<h3>① 小六壬</h3>`;
-  html += `<p>天宫：${xlGong[0]}（${xlJx[0]}）｜地宫：${xlGong[1]}（${xlJx[1]}）｜人宫：<b>${xlGong[2]}（${xlJx[2]}）</b></p>`;
-  html += `<p>落宫结论：<span class="${xlJ.weight>=1?'lucky':xlJ.weight<0?'unlucky':'neutral'}">${xlJ.raw}</span></p>`;
+  // ===== 逐法释义：每一法先讲清它自己看到了什么 =====
+  html += `<h3>① 小六壬 · 看事态落点</h3>`;
+  html += `<div class="ana-step">天宫 ${XIAOLIU_GONG[xl.tian]} → 地宫 ${XIAOLIU_GONG[xl.di]} → 人宫 <b>${xlGong}</b>（<span class="${xlJ.weight>=1?'lucky':xlJ.weight<0?'unlucky':'neutral'}">${xlJ.raw}</span>）。<br>${xlDetail.read}<br><span class="ana-hint">六壬给的是「事情最终落到哪个状态」：${xlDetail.nature}，${xlDetail.time}。</span></div>`;
 
-  // ---- 梅花易数 ----
-  html += `<h3>② 梅花易数</h3>`;
-  html += `<p>本卦：<b>${mh.guaName}</b> ｜ ${mh.upperSymbol}${mh.lowerSymbol} ｜ 动爻：第${mh.dongYao}爻</p>`;
-  html += `<p>体卦：${mh.tiGua}（${mh.tiWx}）｜用卦：${mh.yongGua}（${mh.yongWx}）</p>`;
-  html += `<p>体用关系：${mh.rel} → <span class="${mhJ.jx==='吉'?'lucky':mhJ.jx==='凶'?'unlucky':'neutral'}">${mh.jixiong}</span></p>`;
+  html += `<h3>② 梅花易数 · 看力量对比</h3>`;
+  html += `<div class="ana-step">本卦 <b>${mh.guaName}</b>（${mh.upperSymbol}${mh.lowerSymbol}），动爻第 ${mh.dongYao} 爻；体卦 ${mh.tiGua}、用卦 ${mh.yongGua}，<b>${mh.rel}</b>（<span class="${mhJ.jx==='吉'?'lucky':mhJ.jx==='凶'?'unlucky':'neutral'}">${mh.jixiong}</span>）。<br>${ty.read}<br><span class="ana-hint">梅花给的是「你与外部环境谁强谁弱」：${ty.mech}；本卦大势——${guaBrief(mh.guaName)}。</span></div>`;
 
-  // ---- 六爻 ----
-  const posNames = ["初爻","二爻","三爻","四爻","五爻","上爻"];
-  html += `<h3>③ 六爻</h3>`;
-  html += `<p>本卦：<b>${ly.benGua}</b> ｜ ${BAGUA_SYMBOL[ly.upperName]||''}${BAGUA_SYMBOL[ly.lowerName]||''}</p>`;
-  if (ly.dongYaos.length) {
-    html += `<p>变卦：<b>${ly.bianGua}</b> ｜ 动爻：${ly.dongYaos.map(d => posNames[d-1]).join('、')}</p>`;
-  } else {
-    html += `<p>动爻：无（静卦）</p>`;
-  }
-  html += `<p>六爻判断：<span class="${lyJ.weight>=1?'lucky':lyJ.weight<0?'unlucky':'neutral'}">${lyJ.jx}</span></p>`;
+  html += `<h3>③ 六爻 · 看变化趋势</h3>`;
+  const lyTrend = ly.dongYaos.length === 0 ? '静卦，事态胶着、需主动推动' :
+    (ly.dongYaos.length >= 2 ? `${ly.dongYaos.length} 个动爻，变动快、头绪多` : '一个动爻，变化集中而清晰');
+  html += `<div class="ana-step">本卦 <b>${ly.benGua}</b>${ly.dongYaos.length && ly.bianGua!=='无变卦' ? ` → 变卦 <b>${ly.bianGua}</b>` : ''}（判 <span class="${lyJ.weight>=1?'lucky':lyJ.weight<0?'unlucky':'neutral'}">${lyJ.jx}</span>）。<br>${lyTrend}。${guaBrief(ly.benGua)}。<br><span class="ana-hint">六爻给的是「事情在往哪个方向变」：${ly.dongYaos.length && ly.bianGua!=='无变卦' ? `从「${ly.benGua}」演向「${ly.bianGua}」，${guaBrief(ly.bianGua)}。` : '无变卦，格局稳定、不会自己转向。'}</span></div>`;
 
-  // ---- 综合 ----
-  html += `<h3>${overallIcon} 三法合参综合判断</h3>`;
-  html += `<p>小六壬：<span class="${xlJ.weight>=1?'lucky':xlJ.weight<0?'unlucky':'neutral'}">${xlJ.raw}</span></p>`;
-  html += `<p>梅花易数：<span class="${mhJ.jx==='吉'?'lucky':mhJ.jx==='凶'?'unlucky':'neutral'}">${mhJ.text}</span></p>`;
-  html += `<p>六爻：${ly.benGua} → <span class="${lyJ.weight>=1?'lucky':lyJ.weight<0?'unlucky':'neutral'}">${lyJ.jx}</span>`;
-  if (ly.dongYaos.length && ly.bianGua !== '无变卦') html += `（变卦：${ly.bianGua}）`;
-  html += `</p>`;
+  // ===== 交叉验证：找共同指向 / 看矛盾点 / 定置信度 =====
+  const signs = [
+    {name:"小六壬", w:xlJ.weight, label:`${xlGong}（${xlJ.raw}）`},
+    {name:"梅花易数", w:mhJ.weight, label:`${mh.rel}（${mhJ.jx}）`},
+    {name:"六爻", w:lyJ.weight, label:`${ly.benGua}（${lyJ.jx}）`}
+  ];
+  const positive = signs.filter(s => s.w > 0);
+  const negative = signs.filter(s => s.w < 0);
+  const flat = signs.filter(s => s.w === 0);
+  let crossText, confidence;
+  if (positive.length === 3) { crossText = `三法一致偏吉（${signs.map(s=>s.label).join('、')}），共同指向「此事可成、宜进」。`; confidence='高（三法印证）'; }
+  else if (negative.length === 3) { crossText = `三法一致偏凶（${signs.map(s=>s.label).join('、')}），共同指向「阻力大、宜退」。`; confidence='高（三法印证）'; }
+  else if (positive.length === 2) { crossText = `两法偏吉（${positive.map(s=>s.name+'·'+s.label).join('、')}），一法${negative.length?'偏凶':'持平'}（${[...negative,...flat].map(s=>s.name+'·'+s.label).join('、')}）。多数指向有利，但分歧处要留意：${negative.length?negative[0].name:'持平一法'}提示的正好是短板和风险点。`; confidence='中（两法一致，一法存异）'; }
+  else if (negative.length === 2) { crossText = `两法偏凶（${negative.map(s=>s.name+'·'+s.label).join('、')}），一法${positive.length?'偏吉':'持平'}（${[...positive,...flat].map(s=>s.name+'·'+s.label).join('、')}）。整体阻力占上风；${positive.length?positive[0].name+'那一线吉，多属局部或短期利好，不足以扭转大局':'且无明确的利好支撑'}。`; confidence='中（两法一致，一法存异）'; }
+  else { crossText = `三法信号分散（${signs.map(s=>s.name+'·'+s.label).join('、')}），吉、凶、平各有说法，没有形成共同指向。这类情况说明事态本身复杂、变数多，不宜下重注。`; confidence='低（三法分歧）'; }
 
-  html += `<h3>综合结论</h3>`;
+  html += `<h3>④ 三法交叉验证</h3>`;
+  html += `<div class="ana-chain"><b>共同指向与矛盾点</b>：${crossText}<br><b>置信度</b>：${confidence}。${confidence.startsWith('低') ? '分歧本身也是信息——先补信息再看，比硬下结论更稳妥。' : '结论可据此定调，但仍留一分余地给现实变化。'}</div>`;
+
+  html += `<h3>${overallIcon} 综合判断</h3>`;
   html += `<p class="${overallClass}"><b>${overall}</b></p>`;
+  html += `<p class="ana-hint">这个结论怎么来的：小六壬定「落点」、梅花定「力量对比」、六爻定「变化趋势」，三者加权合计 ${totalWeight.toFixed(1)}，落在「${overallTone==='good'?'偏吉':overallTone==='bad'?'偏凶':'中性'}」区间。</p>`;
+  html += topicSection(topic, overallTone);
 
-  // 白话建议
   html += `<h3>建议行动</h3>`;
+  let actionHtml;
   if (totalWeight >= 1.5) {
-    html += `<p>三法均指向吉利，可放心推进。注意把握时机，${xlJ.raw.includes('速喜')?'速喜主快，宜速战速决；':''}行动宜果断。</p>`;
+    actionHtml = `三法合力向吉，可放心推进、把握时机。${xlJ.raw.includes('速喜')?'六壬见「速喜」主快，宜速战速决；':''}${ly.dongYaos.length===0?'六爻静卦提醒：顺也要自己先动一步，别坐等。':''}行动宜果断，把关键节点尽快落地。`;
   } else if (totalWeight >= 0) {
-    html += `<p>整体偏吉但非毫无阻力。建议先小步试探，确认方向后再加大投入。${ly.dongYaos.length===0?'静卦需主动破局，不可坐等。':''}</p>`;
+    actionHtml = `整体偏吉但非全无阻力。建议先小步试探、确认方向后再加大投入；重点照顾 ${negative.length?negative.map(s=>s.name).join('、')+' 提示的风险':flat.length?flat.map(s=>s.name).join('、')+' 提示的中性环节':'节奏'}。${ly.dongYaos.length===0?'静卦需主动破局，不可坐等。':''}`;
   } else if (totalWeight > -1.5) {
-    html += `<p>存在明显阻力。建议：①找到具体的阻碍点（${mh.rel==='用克体'?'对方/外部环境压力':mh.rel==='体生用'?'自身精力不足':'变数较多'}）；②评估是否值得继续；③如继续，需调整策略。</p>`;
+    actionHtml = `存在明显阻力。三步走：① 找准阻碍点——${mh.rel==='用克体'?'梅花显示对方/外部环境施压':mh.rel==='体生用'?'梅花显示自身精力在透支':'六爻/六壬显示变数偏多'}；② 评估是否值得继续；③ 若要继续，改策略、减小投入、分步验证，别硬顶。`;
   } else {
-    html += `<p>三法均指向不吉。建议暂停当前计划，重新评估目标或等待更好时机。${xlJ.raw==='空亡'?'空亡主落空，强求无益。':''}</p>`;
+    actionHtml = `三法皆指向不吉，建议暂停当前计划、重新评估目标或等待更好时机。${xlJ.raw==='空亡'?'六壬「空亡」主落空，强求无益，及时止损是上策。':''}把资源留到信号转好时再用。`;
   }
-
+  html += `<div class="ana-step">${actionHtml}</div>`;
+  html += rationalNote();
   return html;
 }
 
