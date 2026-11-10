@@ -846,7 +846,8 @@ const TOPIC_LIB = {
            good:"有助力和推进的窗口，适合争取、表态、把方案递上去",
            bad:"阻力偏大或时机未到，先把能力/资源攒够，别硬顶，也别赌气",
            action:"把关键节点列清楚，抓能主控的环节，其余顺势而为"},
-  wealth: {name:"财运", kw:["钱","财","投资","理财","收益","盈利","赚钱","买卖","生意","股票","基金","彩票","中奖","价格","报价","回款","买房","交易","借钱","欠款","加仓","定投"],
+  wealth: {name:"财运", kw:["钱","财","投资","理财","收益","盈利","赚钱","买卖","生意","股票","基金","彩票","中奖","价格","报价","回款","买房","交易","借钱","欠款","加仓","定投",
+                          "债务","负债","还钱","还款","还清","还上","欠债","欠了","贷款","房贷","车贷","信用卡","还款压力","欠","债","息","利息","月供","账单","催收","偿还","窟窿","周转","周转不开","入不敷出","亏空"],
            lens:"进退与风险",
            good:"有进展但重在节奏，按既定计划分步走，别一次押满",
            bad:"变数大、易起伏，守比攻重要，控制仓位、留足余地",
@@ -1805,10 +1806,22 @@ function getXiaoliuJudgment(res) {
 function getMeihuaJudgment(res) {
   const jx = res.jixiong;
   // jixiong: "吉（用生体，外部助力）", "凶（用克体，外部压力）" 等
-  if (jx.includes('大吉') || jx.startsWith('吉')) return { text: jx, jx: '吉', weight: 1 };
-  if (jx.includes('小凶')) return { text: jx, jx: '小凶', weight: -0.5 };
-  if (jx.startsWith('凶'))  return { text: jx, jx: '凶', weight: -1 };
-  return { text: jx, jx: '平', weight: 0 };
+  let weight;
+  if (jx.includes('大吉') || jx.startsWith('吉')) weight = 1;
+  else if (jx.includes('小凶')) weight = -0.5;
+  else if (jx.startsWith('凶')) weight = -1;
+  else weight = 0;
+  // 本卦自身的卦义也是判断依据（如「山风蛊」主积弊待整，属不利之象），
+  // 不能只看体用关系而丢掉卦象信息。
+  const guaJx = LIUSHI4_JUDGE[res.guaName];
+  let guaAdj = 0;
+  if (guaJx) {
+    const gw = {'大吉':2,'吉':1,'小吉':0.5,'平':0,'凶':-1,'大凶':-2}[guaJx];
+    guaAdj = (typeof gw === 'number' ? gw : 0) * 0.3; // 本卦作为背景修正，权重不宜压过体用
+  }
+  const total = weight + guaAdj;
+  return { text: jx, jx: jx.startsWith('吉') || jx.includes('大吉') ? '吉' : (jx.startsWith('凶') ? '凶' : '平'),
+           weight: Math.round(total * 100) / 100, rawWeight: weight, guaJx, guaAdj };
 }
 
 function getLiuyaoJudgment(res) {
@@ -1841,18 +1854,48 @@ function renderSanfa(xl, mh, ly, question) {
   const lyJ = getLiuyaoJudgment(ly);
   const topic = detectTopic(question);
 
+  // ---- 综合定调：共识度优先，加权和为辅 ----
+  // 三法各自独立起卦，单一卦象的极值（大吉/大凶）不应主导全局结论，
+  // 因此先看几法共识，再看加权总量。
+  const signOf = w => w > 0.2 ? 1 : w < -0.2 ? -1 : 0;
+  const sXl = signOf(xlJ.weight), sMh = signOf(mhJ.weight), sLy = signOf(lyJ.weight);
+  const posCount = [sXl, sMh, sLy].filter(s => s > 0).length;
+  const negCount = [sXl, sMh, sLy].filter(s => s < 0).length;
   const totalWeight = xlJ.weight + mhJ.weight + lyJ.weight;
+  // 共识加成：几法同向时增强定调，分歧时削弱
+  const consensus = posCount === 3 ? 1.5 : negCount === 3 ? -1.5
+                  : posCount === 2 ? 0.6 : negCount === 2 ? -0.6 : 0;
+  const blended = totalWeight * 0.6 + consensus * 1.2;
+
   let overall, overallClass, overallIcon, overallTone;
-  if (totalWeight >= 2) { overall = '三法合力指向吉利，是大吉之象，可全力推进。'; overallClass='lucky'; overallIcon='✅'; overallTone='good'; }
-  else if (totalWeight >= 0.5) { overall = '三法整体偏吉，趋势向好，建议积极推进。'; overallClass='lucky'; overallIcon='✅'; overallTone='good'; }
-  else if (totalWeight > -0.5) { overall = '吉凶参半，事态复杂，需审慎决策、分步推进。'; overallClass='neutral'; overallIcon='⚠️'; overallTone='neutral'; }
-  else if (totalWeight > -2) { overall = '阻力大于助力，整体偏凶，建议暂缓或调整策略。'; overallClass='unlucky'; overallIcon='⚠️'; overallTone='bad'; }
+  // 只有三法完全同向且无一法示警，才敢给「大吉、可全力推进」；
+  // 只要存在一法示警，就降档为「偏吉但有明确风险点」，避免少数派的警告被加权稀释。
+  if (blended >= 1.5 && posCount === 3) { overall = '三法合力指向吉利，是大吉之象，可全力推进。'; overallClass='lucky'; overallIcon='✅'; overallTone='good'; }
+  else if (blended >= 0.4) {
+    overall = posCount >= 2
+      ? (negCount > 0 ? '三法多数指向吉利，趋势向好，但其中一法明确示警——宜稳扎稳打，先解决那处隐患再加速。' : '三法多数指向吉利，趋势向好，建议积极推进。')
+      : '整体略偏吉，但共识不强，宜小步试探后再加力。';
+    overallClass='lucky'; overallIcon='✅'; overallTone='good';
+  }
+  else if (blended > -0.4) { overall = '吉凶参半，事态复杂，需审慎决策、分步推进。'; overallClass='neutral'; overallIcon='⚠️'; overallTone='neutral'; }
+  else if (blended > -1.5) { overall = negCount >= 2 ? '三法多数指向不利，阻力较大，建议暂缓或调整策略。' : '整体略偏滞，宜放缓节奏、稳住现状。'; overallClass='unlucky'; overallIcon='⚠️'; overallTone='bad'; }
   else { overall = '三法皆指向不吉，建议放弃当前方案、另寻他途。'; overallClass='unlucky'; overallIcon='❌'; overallTone='bad'; }
 
   const xlGong = XIAOLIU_GONG[xl.ren];
   const xlDetail = XIAOLIU_DETAIL[xlGong];
   const ty = TIYONG_DETAIL[mh.rel] || TIYONG_DETAIL["比和"];
   const posNames = ["初爻","二爻","三爻","四爻","五爻","上爻"];
+
+  // 三法各自的正负分组（供定调与交叉验证共用）
+  const dirLabel = w => w > 0.2 ? '吉' : w < -0.2 ? '凶' : '平';
+  const signs = [
+    {name:"小六壬", w:xlJ.weight, label:`${xlGong}（${xlJ.raw}）`},
+    {name:"梅花易数", w:mhJ.weight, label:`${mh.rel}（${dirLabel(mhJ.weight)}）`},
+    {name:"六爻", w:lyJ.weight, label:`${ly.benGua}（${dirLabel(lyJ.weight)}）`}
+  ];
+  const positive = signs.filter(s => s.w > 0);
+  const negative = signs.filter(s => s.w < 0);
+  const flat = signs.filter(s => s.w === 0);
 
   let html = `<h3>🔮 三法合参占断结果</h3>`;
   html += `<p>占卜时间：${now2.year}年${now2.month}月${now2.day}日 ${String(now2.hour).padStart(2,'0')}:${String(now2.minute).padStart(2,'0')}</p>`;
@@ -1864,27 +1907,46 @@ function renderSanfa(xl, mh, ly, question) {
   html += `<div class="ana-step">天宫 ${XIAOLIU_GONG[xl.tian]} → 地宫 ${XIAOLIU_GONG[xl.di]} → 人宫 <b>${xlGong}</b>（<span class="${xlJ.weight>=1?'lucky':xlJ.weight<0?'unlucky':'neutral'}">${xlJ.raw}</span>）。<br>${xlDetail.read}<br><span class="ana-hint">六壬给的是「事情最终落到哪个状态」：${xlDetail.nature}，${xlDetail.time}。</span></div>`;
 
   html += `<h3>② 梅花易数 · 看力量对比</h3>`;
-  html += `<div class="ana-step">本卦 <b>${mh.guaName}</b>（${mh.upperSymbol}${mh.lowerSymbol}），动爻第 ${mh.dongYao} 爻；体卦 ${mh.tiGua}、用卦 ${mh.yongGua}，<b>${mh.rel}</b>（<span class="${mhJ.jx==='吉'?'lucky':mhJ.jx==='凶'?'unlucky':'neutral'}">${mh.jixiong}</span>）。<br>${ty.read}<br><span class="ana-hint">梅花给的是「你与外部环境谁强谁弱」：${ty.mech}；本卦大势——${guaBrief(mh.guaName)}。</span></div>`;
+  html += `<div class="ana-step">本卦 <b>${mh.guaName}</b>（${mh.upperSymbol}${mh.lowerSymbol}），动爻第 ${mh.dongYao} 爻；体卦 ${mh.tiGua}、用卦 ${mh.yongGua}，<b>${mh.rel}</b>（<span class="${mhJ.jx==='吉'?'lucky':mhJ.jx==='凶'?'unlucky':'neutral'}">${mh.jixiong}</span>）。<br>${ty.read}<br><span class="ana-hint">梅花给的是「你与外部环境谁强谁弱」：${ty.mech}；本卦大势——${guaBrief(mh.guaName)}。${mhJ.guaJx ? ` 本卦「${mh.guaName}」在卦象中属「${mhJ.guaJx}」，这一点也会计入综合判断。` : ''}</span></div>`;
 
   html += `<h3>③ 六爻 · 看变化趋势</h3>`;
   const lyTrend = ly.dongYaos.length === 0 ? '静卦，事态胶着、需主动推动' :
     (ly.dongYaos.length >= 2 ? `${ly.dongYaos.length} 个动爻，变动快、头绪多` : '一个动爻，变化集中而清晰');
-  html += `<div class="ana-step">本卦 <b>${ly.benGua}</b>${ly.dongYaos.length && ly.bianGua!=='无变卦' ? ` → 变卦 <b>${ly.bianGua}</b>` : ''}（判 <span class="${lyJ.weight>=1?'lucky':lyJ.weight<0?'unlucky':'neutral'}">${lyJ.jx}</span>）。<br>${lyTrend}。${guaBrief(ly.benGua)}。<br><span class="ana-hint">六爻给的是「事情在往哪个方向变」：${ly.dongYaos.length && ly.bianGua!=='无变卦' ? `从「${ly.benGua}」演向「${ly.bianGua}」，${guaBrief(ly.bianGua)}。` : '无变卦，格局稳定、不会自己转向。'}</span></div>`;
+  html += `<div class="ana-step">本卦 <b>${ly.benGua}</b>${ly.dongYaos.length && ly.bianGua!=='无变卦' ? ` → 变卦 <b>${ly.bianGua}</b>` : ''}（判 <span class="${lyJ.weight>=1?'lucky':lyJ.weight<0?'unlucky':'neutral'}">${lyJ.weight>0.2?'吉':lyJ.weight<-0.2?'凶':'平'}</span>）。<br>${lyTrend}。${guaBrief(ly.benGua)}。<br><span class="ana-hint">六爻给的是「事情在往哪个方向变」：${ly.dongYaos.length && ly.bianGua!=='无变卦' ? `从「${ly.benGua}」演向「${ly.bianGua}」，${guaBrief(ly.bianGua)}。` : '无变卦，格局稳定、不会自己转向。'}</span></div>`;
 
   // ===== 交叉验证：找共同指向 / 看矛盾点 / 定置信度 =====
-  const signs = [
-    {name:"小六壬", w:xlJ.weight, label:`${xlGong}（${xlJ.raw}）`},
-    {name:"梅花易数", w:mhJ.weight, label:`${mh.rel}（${mhJ.jx}）`},
-    {name:"六爻", w:lyJ.weight, label:`${ly.benGua}（${lyJ.jx}）`}
-  ];
-  const positive = signs.filter(s => s.w > 0);
-  const negative = signs.filter(s => s.w < 0);
-  const flat = signs.filter(s => s.w === 0);
+  // 标签显示「综合权重方向」，避免体用与卦象修正后 jx 字段与 weight 不一致
+  // 分歧处要指名道姓说清是哪一法、它提示了什么，而不是笼统一句「留意短板」
+  const dissentDetail = (arr) => arr.map(s => {
+    if (s.name === '梅花易数') {
+      const pressure = mh.rel === '用克体' ? '外部压力占上风'
+                    : mh.rel === '体生用' ? '自身在持续付出、精力外泄'
+                    : mh.rel === '比和' ? '双方力量相当、僵持'
+                    : '外部对你有助力';
+      const advicePart = s.w < 0 ? `，宜${(ty.good || '调整策略').split('，')[0]}` : '，可趁势推进';
+      const base = `体用「${mh.rel}」显示${pressure}${advicePart}`;
+      const gua = mh.guaName && LIUSHI4_JUDGE[mh.guaName] ? `；本卦「${mh.guaName}」本身主「${guaBrief(mh.guaName)}」` : '';
+      return `${s.name}（${base}${gua}）`;
+    }
+    if (s.name === '六爻') {
+      return `${s.name}（本卦 ${ly.benGua}${ly.dongYaos.length && ly.bianGua !== '无变卦' ? '→变卦 ' + ly.bianGua : '，静卦'}，${ly.dongYaos.length === 0 ? '事态胶着需外力推动' : ly.dongYaos.length >= 2 ? '变动频繁、头绪杂' : '变化集中在一处'}）`;
+    }
+    return `${s.name}（${s.label}）`;
+  }).join('；');
+
   let crossText, confidence;
   if (positive.length === 3) { crossText = `三法一致偏吉（${signs.map(s=>s.label).join('、')}），共同指向「此事可成、宜进」。`; confidence='高（三法印证）'; }
   else if (negative.length === 3) { crossText = `三法一致偏凶（${signs.map(s=>s.label).join('、')}），共同指向「阻力大、宜退」。`; confidence='高（三法印证）'; }
-  else if (positive.length === 2) { crossText = `两法偏吉（${positive.map(s=>s.name+'·'+s.label).join('、')}），一法${negative.length?'偏凶':'持平'}（${[...negative,...flat].map(s=>s.name+'·'+s.label).join('、')}）。多数指向有利，但分歧处要留意：${negative.length?negative[0].name:'持平一法'}提示的正好是短板和风险点。`; confidence='中（两法一致，一法存异）'; }
-  else if (negative.length === 2) { crossText = `两法偏凶（${negative.map(s=>s.name+'·'+s.label).join('、')}），一法${positive.length?'偏吉':'持平'}（${[...positive,...flat].map(s=>s.name+'·'+s.label).join('、')}）。整体阻力占上风；${positive.length?positive[0].name+'那一线吉，多属局部或短期利好，不足以扭转大局':'且无明确的利好支撑'}。`; confidence='中（两法一致，一法存异）'; }
+  else if (positive.length === 2) {
+    const dis = negative.length ? negative : flat;
+    crossText = `两法偏吉（${positive.map(s=>s.name+'·'+s.label).join('、')}），一法${negative.length?'偏凶':'持平'}（${dis.map(s=>s.name+'·'+s.label).join('、')}）。多数指向有利，但这一处分歧必须看清楚：${dissentDetail(dis)}。<br>这一法是三法中唯一说「不」的，它提示的不是「整体不行」，而是<b>事情里最容易卡住的那个环节</b>——多数派的吉利恰恰要靠解决它才能兑现。`;
+    confidence='中（两法一致，一法存异）';
+  }
+  else if (negative.length === 2) {
+    const dis = positive.length ? positive : flat;
+    crossText = `两法偏凶（${negative.map(s=>s.name+'·'+s.label).join('、')}），一法${positive.length?'偏吉':'持平'}（${dis.map(s=>s.name+'·'+s.label).join('、')}）。整体阻力占上风；${positive.length?`${positive[0].name}那一线吉，多属局部或短期利好，不足以扭转大局。`:'且无明确的利好支撑'}。`;
+    confidence='中（两法一致，一法存异）';
+  }
   else { crossText = `三法信号分散（${signs.map(s=>s.name+'·'+s.label).join('、')}），吉、凶、平各有说法，没有形成共同指向。这类情况说明事态本身复杂、变数多，不宜下重注。`; confidence='低（三法分歧）'; }
 
   html += `<h3>④ 三法交叉验证</h3>`;
@@ -1892,17 +1954,19 @@ function renderSanfa(xl, mh, ly, question) {
 
   html += `<h3>${overallIcon} 综合判断</h3>`;
   html += `<p class="${overallClass}"><b>${overall}</b></p>`;
-  html += `<p class="ana-hint">这个结论怎么来的：小六壬定「落点」、梅花定「力量对比」、六爻定「变化趋势」，三者加权合计 ${totalWeight.toFixed(1)}，落在「${overallTone==='good'?'偏吉':overallTone==='bad'?'偏凶':'中性'}」区间。</p>`;
+  html += `<p class="ana-hint">这个结论怎么来的：小六壬定「落点」、梅花定「力量对比」、六爻定「变化趋势」。加权合计 ${totalWeight.toFixed(1)}，${posCount>=2||negCount>=2 ? `其中 ${Math.max(posCount,negCount)} 法同向（共识加成 ${consensus>0?'+':''}${consensus}）` : '三法信号分散、无共识加成'}，综合分 ${blended.toFixed(1)}，落在「${overallTone==='good'?'偏吉':overallTone==='bad'?'偏凶':'中性'}」区间。</p>`;
   html += topicSection(topic, overallTone);
 
   html += `<h3>建议行动</h3>`;
   let actionHtml;
-  if (totalWeight >= 1.5) {
+  if (blended >= 1.5 && posCount === 3) {
     actionHtml = `三法合力向吉，可放心推进、把握时机。${xlJ.raw.includes('速喜')?'六壬见「速喜」主快，宜速战速决；':''}${ly.dongYaos.length===0?'六爻静卦提醒：顺也要自己先动一步，别坐等。':''}行动宜果断，把关键节点尽快落地。`;
-  } else if (totalWeight >= 0) {
-    actionHtml = `整体偏吉但非全无阻力。建议先小步试探、确认方向后再加大投入；重点照顾 ${negative.length?negative.map(s=>s.name).join('、')+' 提示的风险':flat.length?flat.map(s=>s.name).join('、')+' 提示的中性环节':'节奏'}。${ly.dongYaos.length===0?'静卦需主动破局，不可坐等。':''}`;
-  } else if (totalWeight > -1.5) {
-    actionHtml = `存在明显阻力。三步走：① 找准阻碍点——${mh.rel==='用克体'?'梅花显示对方/外部环境施压':mh.rel==='体生用'?'梅花显示自身精力在透支':'六爻/六壬显示变数偏多'}；② 评估是否值得继续；③ 若要继续，改策略、减小投入、分步验证，别硬顶。`;
+  } else if (blended >= 0.4) {
+    actionHtml = `整体偏吉，但${negative.length ? '三法中有一法明确示警，不能当作全吉来行动' : '共识还不算强'}，宜「先小步验证再加大投入」。三步走：① 先做一件成本最低、验证最快的小事；② 观察现实反馈是否与卦象方向一致；③ 一致再加码，不一致就换法。${negative.length?`其中 ${dissentDetail(negative)}——这一处是明摆着的风险点，优先处理它，多数派的吉利才靠得住。`:''}${ly.dongYaos.length===0?'六爻静卦提醒：别坐等，自己先动一步。':''}`;
+  } else if (blended > -0.4) {
+    actionHtml = `吉凶参半，事情本身就有难度。三步走：① 把当前局面摊开，列清手上真正握得住的条件与完全不受你控制的条件；② 只在握得住的部分下功夫；③ 找一个能试探方向的小切口先试，别一次性押上。${negative.length?`风险点：${dissentDetail(negative)}。`:''}`;
+  } else if (blended > -1.5) {
+    actionHtml = `阻力明显大于助力。三步走：① 找准阻碍点——${mh.rel==='用克体'?'梅花显示外部/对方施压':mh.rel==='体生用'?'梅花显示自身精力在透支':negative.length?negative.map(s=>s.name).join('、')+' 指向不利':'变数偏多'}；② 重新评估这件事值不值得继续投入；③ 若要继续，改策略、减小投入、分步验证，别硬顶。`;
   } else {
     actionHtml = `三法皆指向不吉，建议暂停当前计划、重新评估目标或等待更好时机。${xlJ.raw==='空亡'?'六壬「空亡」主落空，强求无益，及时止损是上策。':''}把资源留到信号转好时再用。`;
   }
